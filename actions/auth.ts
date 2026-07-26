@@ -35,7 +35,7 @@ export async function requestPasswordReset(email: string): Promise<ActionResult>
     const expires = new Date(Date.now() + 3600 * 1000); // 1 hour
 
     await db.passwordResetToken.upsert({
-      where: { identifier_token: { identifier: email, token: "" } },
+      where: { email },
       create: { email, token, expires },
       update: { token, expires },
     }).catch(async () => {
