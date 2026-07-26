@@ -24,7 +24,7 @@ export default async function AdminDashboard() {
     db.user.count({ where: { role: "USER", createdAt: { gte: startOfMonth } } }),
     db.product.count({ where: { isActive: true } }),
     db.product.findMany({ where: { isActive: true, stock: { lte: 5 } }, select: { id: true, name: true, stock: true, slug: true }, orderBy: { stock: "asc" }, take: 5 }),
-    db.order.findMany({ include: { items: { take: 1, select: { name: true } } }, orderBy: { createdAt: "desc" }, take: 8, select: { id: true, orderNumber: true, total: true, status: true, paymentStatus: true, createdAt: true, shippingName: true, items: { take: 1, select: { name: true } } } }),
+    db.order.findMany({ orderBy: { createdAt: "desc" }, take: 8, select: { id: true, orderNumber: true, total: true, status: true, paymentStatus: true, createdAt: true, shippingName: true, items: { take: 1, select: { name: true } } } }),
   ]);
 
   const revenueGrowth = lastMonthRevenue._sum.total
