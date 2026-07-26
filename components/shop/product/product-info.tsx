@@ -13,7 +13,7 @@ import { useCartStore } from "@/hooks/use-cart";
 import { toast } from "@/hooks/use-toast";
 import {
   formatPrice, calculateDiscount, getStockLabel,
-  getProductWhatsAppUrl, getShareWhatsAppUrl,
+  getProductWhatsAppUrl, getShareWhatsAppUrl, getAppUrl,
 } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { ProductWithRelations, ProductVariantType } from "@/types";
@@ -59,7 +59,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
   }
 
   const whatsappUrl = getProductWhatsAppUrl(`${product.name}${selectedVariant ? ` – ${selectedVariant.value}` : ""}`);
-  const shareUrl = getShareWhatsAppUrl(product.name, `${process.env.NEXT_PUBLIC_APP_URL}/products/${product.slug}`);
+  const shareUrl = getShareWhatsAppUrl(product.name, `${getAppUrl()}/products/${product.slug}`);
 
   return (
     <div className="space-y-6">

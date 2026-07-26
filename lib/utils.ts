@@ -71,6 +71,11 @@ export function truncate(str: string, length: number): string {
   return str.slice(0, length) + "..."
 }
 
+export function getAppUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+  return /^https?:\/\//.test(raw) ? raw.replace(/\/$/, "") : `https://${raw.replace(/\/$/, "")}`
+}
+
 export function absoluteUrl(path: string): string {
-  return `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}${path}`
+  return `${getAppUrl()}${path}`
 }

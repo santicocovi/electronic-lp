@@ -1,4 +1,5 @@
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
+import { getAppUrl } from "@/lib/utils";
 
 const client = new MercadoPagoConfig({
   accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN!,
@@ -30,7 +31,7 @@ interface CreatePreferenceOptions {
 }
 
 export async function createCheckoutPreference(opts: CreatePreferenceOptions) {
-  const BASE = process.env.NEXT_PUBLIC_APP_URL!;
+  const BASE = getAppUrl();
 
   const body = {
     items: opts.items.map((item) => ({

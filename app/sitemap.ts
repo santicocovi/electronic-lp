@@ -1,8 +1,9 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
+import { getAppUrl } from "@/lib/utils";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const BASE = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const BASE = getAppUrl();
 
   const [products, categories] = await Promise.all([
     db.product.findMany({

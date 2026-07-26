@@ -4,14 +4,14 @@ import { Toaster } from "@/components/ui/toast";
 import { SessionProvider } from "@/components/shared/session-provider";
 import { auth } from "@/auth";
 import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
+import { cn, getAppUrl } from "@/lib/utils";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: { default: "Electronic LP", template: "%s | Electronic LP" },
   description: "iPhone, MacBook, iPad, AirPods y más. Envíos a todo el país.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(getAppUrl()),
   openGraph: {
     type: "website",
     locale: "es_AR",

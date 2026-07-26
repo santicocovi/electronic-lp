@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { getAppUrl } from "@/lib/utils";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -12,7 +13,7 @@ const transporter = nodemailer.createTransport({
 
 const FROM = process.env.SMTP_FROM ?? "Electronic LP <electroniclpok@gmail.com>";
 const STORE = "Electronic LP";
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+const BASE_URL = getAppUrl();
 
 // ─── Email Templates ──────────────────────────────────────────
 
