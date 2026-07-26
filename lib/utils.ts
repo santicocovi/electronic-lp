@@ -14,8 +14,8 @@ export function formatPrice(price: number, currency = "ARS"): string {
   }).format(price)
 }
 
-export function calculateDiscount(originalPrice: number, salePrice: number): number {
-  if (originalPrice <= 0) return 0
+export function calculateDiscount(originalPrice: number, salePrice: number | null | undefined): number {
+  if (!salePrice || originalPrice <= 0) return 0
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100)
 }
 
@@ -39,21 +39,23 @@ export function generateOrderNumber(): string {
 
 export function getProductWhatsAppUrl(
   productName: string,
-  productUrl: string,
+  productUrl = "",
   whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "5492214358517"
 ): string {
   const message = encodeURIComponent(
-    `Hola! Me interesa el producto: ${productName}\n${productUrl}`
+    productUrl
+      ? `Hola! Me interesa el producto: ${productName}\n${productUrl}`
+      : `Hola! Me interesa el producto: ${productName}`
   )
   return `https://wa.me/${whatsappNumber}?text=${message}`
 }
 
 export function getShareWhatsAppUrl(
   productName: string,
-  productUrl: string
+  productUrl = ""
 ): string {
   const message = encodeURIComponent(
-    `Mirá este producto de Electronic LP: ${productName}\n${productUrl}`
+    `Mirá este producto de Electronic LP: ${productName}${productUrl ? `\n${productUrl}` : ""}`
   )
   return `https://wa.me/?text=${message}`
 }
