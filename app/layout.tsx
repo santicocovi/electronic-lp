@@ -3,6 +3,10 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { SessionProvider } from "@/components/shared/session-provider";
 import { auth } from "@/auth";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: { default: "Electronic LP", template: "%s | Electronic LP" },
@@ -21,7 +25,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const session = await auth();
 
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
       <body className="min-h-screen bg-white antialiased">
         <SessionProvider session={session}>
           {children}
