@@ -86,7 +86,7 @@ export default async function HomePage() {
         cta={settings.heroCta}
       />
 
-      <CategoriesSection categories={categories as CategoryWithChildren[]} />
+      <CategoriesSection categories={categories as unknown as CategoryWithChildren[]} />
 
       {featured.length > 0 && (
         <ProductsSection
