@@ -132,7 +132,7 @@ export function CatalogFilters({
                   max={priceRange.max}
                   step={1000}
                   value={priceValues}
-                  onValueChange={setPriceValues}
+                  onValueChange={(val) => setPriceValues(Array.isArray(val) ? [...val] as number[] : [val as number])}
                   className="mb-4"
                 />
                 <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
