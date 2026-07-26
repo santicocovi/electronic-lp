@@ -1,0 +1,189 @@
+"use client";
+
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import { X, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import { cn, formatPrice } from "@/lib/utils";
+
+interface CatalogFiltersProps {
+  open: boolean;
+  onClose: () => void;
+  categories: { id: string; name: string; slug: string; parentId: string | null }[];
+  brands: { id: string; name: string; slug: string }[];
+  priceRange: { min: number; max: number };
+  onFilter: (key: string, value: string | null) => void;
+}
+
+export function CatalogFilters({
+  open, onClose, categories, brands, priceRange, onFilter
+}: CatalogFiltersProps) {
+  const searchParams = useSearchParams();
+  const [priceValues, setPriceValues] = useState([priceRange.min, priceRange.max]);
+
+  const activeCategory = searchParams.get("category");
+  const activeBrand = searchParams.get("brand");
+  const inStock = searchParams.get("inStock") === "true";
+
+  function applyPrice() {
+    onFilter("minPrice", String(priceValues[0]));
+    onFilter("maxPrice", String(priceValues[1]));
+  }
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
+            onClick={onClose}
+          />
+          <motion.aside
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 200 }}
+            className="fixed left-0 top-0 bottom-0 w-80 bg-white z-50 overflow-y-auto shadow-2xl"
+          >
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="font-semibold text-lg">Filtros</h2>
+              <Button variant="ghost" size="icon" className="rounded-xl" onClick={onClose}>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="p-6 space-y-8">
+              {/* Category */}
+              <div>
+                <h3 className="font-semibold text-sm text-gray-500 uppercase tracking-wider mb-3">
+                  Categoría
+                </h3>
+                <div className="space-y-1">
+                  <button
+                    onClick={() => { onFilter("category", null); onClose(); }}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded-xl text-sm transition-colors",
+                      !activeCategory ? "bg-brand-blue-subtle text-brand-blue-mid font-semibold" : "hover:bg-gray-50 text-gray-700"
+                    )}
+                  >
+                    Todas
+                  </button>
+                  {categories.filter(c => !c.parentId).map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => { onFilter("category", cat.slug); onClose(); }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-xl text-sm transition-colors flex items-center justify-between",
+                        activeCategory === cat.slug ? "bg-brand-blue-subtle text-brand-blue-mid font-semibold" : "hover:bg-gray-50 text-gray-700"
+                      )}
+                    >
+                      {cat.name}
+                      {activeCategory === cat.slug && <Check className="w-4 h-4" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Brand */}
+              {brands.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-sm text-gray-500 uppercase tracking-wider mb-3">
+                    Marca
+                  </h3>
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => { onFilter("brand", null); onClose(); }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 rounded-xl text-sm transition-colors",
+                        !activeBrand ? "bg-brand-blue-subtle text-brand-blue-mid font-semibold" : "hover:bg-gray-50 text-gray-700"
+                      )}
+                    >
+                      Todas
+                    </button>
+                    {brands.map((brand) => (
+                      <button
+                        key={brand.id}
+                        onClick={() => { onFilter("brand", brand.slug); onClose(); }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-xl text-sm transition-colors flex items-center justify-between",
+                          activeBrand === brand.slug ? "bg-brand-blue-subtle text-brand-blue-mid font-semibold" : "hover:bg-gray-50 text-gray-700"
+                        )}
+                      >
+                        {brand.name}
+                        {activeBrand === brand.slug && <Check className="w-4 h-4" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Price */}
+              <div>
+                <h3 className="font-semibold text-sm text-gray-500 uppercase tracking-wider mb-4">
+                  Precio
+                </h3>
+                <Slider
+                  min={priceRange.min}
+                  max={priceRange.max}
+                  step={1000}
+                  value={priceValues}
+                  onValueChange={setPriceValues}
+                  className="mb-4"
+                />
+                <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                  <span>{formatPrice(priceValues[0])}</span>
+                  <span>{formatPrice(priceValues[1])}</span>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full rounded-xl bg-brand-blue-mid hover:bg-brand-blue-hover text-white"
+                  onClick={() => { applyPrice(); onClose(); }}
+                >
+                  Aplicar precio
+                </Button>
+              </div>
+
+              {/* Stock */}
+              <div>
+                <h3 className="font-semibold text-sm text-gray-500 uppercase tracking-wider mb-3">
+                  Disponibilidad
+                </h3>
+                <button
+                  onClick={() => { onFilter("inStock", inStock ? null : "true"); onClose(); }}
+                  className={cn(
+                    "w-full text-left px-3 py-2 rounded-xl text-sm transition-colors flex items-center justify-between",
+                    inStock ? "bg-brand-blue-subtle text-brand-blue-mid font-semibold" : "hover:bg-gray-50 text-gray-700"
+                  )}
+                >
+                  Solo con stock
+                  {inStock && <Check className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* Clear all */}
+              <Button
+                variant="outline"
+                className="w-full rounded-xl"
+                onClick={() => {
+                  onFilter("category", null);
+                  onFilter("brand", null);
+                  onFilter("minPrice", null);
+                  onFilter("maxPrice", null);
+                  onFilter("inStock", null);
+                  onClose();
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            </div>
+          </motion.aside>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
