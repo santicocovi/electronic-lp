@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCartStore } from "@/hooks/use-cart";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import {
   formatPrice, calculateDiscount, getStockLabel,
   getProductWhatsAppUrl, getShareWhatsAppUrl,
@@ -24,7 +24,6 @@ interface ProductInfoProps {
 
 export function ProductInfo({ product }: ProductInfoProps) {
   const addItem = useCartStore((s) => s.addItem);
-  const { toast } = useToast();
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantType | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
@@ -55,7 +54,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
       variantName: selectedVariant ? `${selectedVariant.name}: ${selectedVariant.value}` : undefined,
     });
     setAdded(true);
-    toast({ title: "Agregado al carrito ✓", description: product.name });
+    toast.add({ title: "Agregado al carrito ✓", description: product.name });
     setTimeout(() => setAdded(false), 2000);
   }
 

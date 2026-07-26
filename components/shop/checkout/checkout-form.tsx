@@ -12,7 +12,7 @@ import { formatPrice } from "@/lib/utils";
 import { checkoutSchema, type CheckoutInput } from "@/validations";
 import { createOrder } from "@/actions/orders";
 import type { ShippingMethod, Address } from "@prisma/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 interface CheckoutFormProps {
   userId: string;
@@ -24,7 +24,6 @@ interface CheckoutFormProps {
 
 export function CheckoutForm({ userId, userEmail, userName, shippingMethods, defaultAddress }: CheckoutFormProps) {
   const { items, subtotal, clearCart } = useCartStore();
-  const { toast } = useToast();
   const [couponInput, setCouponInput] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
@@ -70,9 +69,9 @@ export function CheckoutForm({ userId, userEmail, userName, shippingMethods, def
       if (data.valid) {
         setAppliedCoupon(couponInput.toUpperCase());
         setCouponDiscount(data.discount);
-        toast({ title: `Cupón aplicado: -${formatPrice(data.discount)}` });
+        toast.add({ title: `Cupón aplicado: -${formatPrice(data.discount)}` });
       } else {
-        toast({ title: "Cupón inválido", variant: "destructive" });
+        toast.add({ title: "Cupón inválido", type: "error" });
       }
     } finally {
       setCheckingCoupon(false);
@@ -114,7 +113,7 @@ export function CheckoutForm({ userId, userEmail, userName, shippingMethods, def
       clearCart();
       window.location.href = result.data.preferenceUrl;
     } else {
-      toast({ title: "Error al procesar el pedido", description: (result as {error?: string}).error, variant: "destructive" });
+      toast.add({ title: "Error al procesar el pedido", description: (result as {error?: string}).error, type: "error" });
     }
   }
 

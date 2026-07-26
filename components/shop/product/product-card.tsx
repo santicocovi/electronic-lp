@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatPrice, calculateDiscount, getProductWhatsAppUrl } from "@/lib/utils";
 import { useCartStore } from "@/hooks/use-cart";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import type { ProductWithRelations } from "@/types";
 
 interface ProductCardProps {
@@ -18,7 +18,6 @@ interface ProductCardProps {
 
 export function ProductCard({ product, className }: ProductCardProps) {
   const addItem = useCartStore((s) => s.addItem);
-  const { toast } = useToast();
 
   const mainImage =
     product.images.find((i) => i.isMain)?.url ??
@@ -39,7 +38,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
       quantity: 1,
       stock: product.stock,
     });
-    toast({ title: "Agregado al carrito", description: product.name });
+    toast.add({ title: "Agregado al carrito", description: product.name });
   }
 
   return (

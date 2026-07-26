@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveSettings } from "@/actions/admin/settings";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 interface SettingsForm {
   storeName: string;
@@ -30,7 +30,6 @@ interface SettingsForm {
 }
 
 export default function AdminSettingsPage() {
-  const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
   const { register, handleSubmit } = useForm<SettingsForm>({
@@ -44,9 +43,9 @@ export default function AdminSettingsPage() {
     setSaving(true);
     const result = await saveSettings(data as unknown as Record<string, string>);
     if (result.success) {
-      toast({ title: "Configuración guardada" });
+      toast.add({ title: "Configuración guardada" });
     } else {
-      toast({ title: "Error al guardar", variant: "destructive" });
+      toast.add({ title: "Error al guardar", type: "error" });
     }
     setSaving(false);
   }

@@ -4,22 +4,21 @@ import { useState } from "react";
 import { Trash2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { deleteProduct } from "@/actions/admin/products";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 export function AdminDeleteProduct({ id, name }: { id: string; name: string }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { toast } = useToast();
 
   async function handleDelete() {
     if (!confirm(`¿Eliminár "${name}"? Esta acción no se puede deshacer.`)) return;
     setLoading(true);
     const result = await deleteProduct(id);
     if (result.success) {
-      toast({ title: "Producto eliminado" });
+      toast.add({ title: "Producto eliminado" });
       router.refresh();
     } else {
-      toast({ title: "Error al eliminar", variant: "destructive" });
+      toast.add({ title: "Error al eliminar", type: "error" });
     }
     setLoading(false);
   }

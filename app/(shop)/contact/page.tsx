@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { contactSchema, type ContactInput } from "@/validations";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { useState } from "react";
 
 const CONTACT_INFO = [
@@ -37,7 +37,6 @@ const CONTACT_INFO = [
 ];
 
 export default function ContactPage() {
-  const { toast } = useToast();
   const [sent, setSent] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<ContactInput>({
@@ -51,11 +50,11 @@ export default function ContactPage() {
       body: JSON.stringify(data),
     });
     if (res.ok) {
-      toast({ title: "Mensaje enviado", description: "Te respondemos a la brevedad." });
+      toast.add({ title: "Mensaje enviado", description: "Te respondemos a la brevedad." });
       setSent(true);
       reset();
     } else {
-      toast({ title: "Error al enviar", variant: "destructive" });
+      toast.add({ title: "Error al enviar", type: "error" });
     }
   }
 
