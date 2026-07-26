@@ -66,7 +66,7 @@ export function FAQSection({ faqs }: FAQSectionProps) {
           viewport={{ once: true }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <Accordion type="single" collapsible className="space-y-3">
+          <Accordion className="space-y-3">
             {items.map((faq) => (
               <AccordionItem
                 key={faq.id}
