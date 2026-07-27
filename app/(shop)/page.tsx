@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getSiteSettings } from "@/lib/settings";
+import { serializeProducts } from "@/lib/serialize";
 import { Hero } from "@/components/shop/home/hero";
 import { CategoriesSection } from "@/components/shop/home/categories-section";
 import { ProductsSection } from "@/components/shop/home/products-section";
 import { FeaturedCarousel } from "@/components/shop/home/featured-carousel";
+import { BrandsSection } from "@/components/shop/home/brands-section";
 import { BenefitsSection } from "@/components/shop/home/benefits-section";
 import { TestimonialsSection } from "@/components/shop/home/testimonials-section";
 import { FAQSection } from "@/components/shop/home/faq-section";
@@ -36,21 +38,9 @@ const PRODUCT_SELECT = {
   category: { select: { id: true, name: true, slug: true } },
 };
 
-// Prisma Decimal fields can't be passed as props to Client Components — coerce to plain numbers.
-function serializeProducts(products: Record<string, unknown>[]): ProductWithRelations[] {
-  return products.map((p) => ({
-    ...p,
-    price: Number(p.price),
-    comparePrice: p.comparePrice != null ? Number(p.comparePrice) : null,
-    variants: (p.variants as { price: unknown }[]).map((v) => ({
-      ...v,
-      price: v.price != null ? Number(v.price) : null,
-    })),
-  })) as unknown as ProductWithRelations[];
-}
 
 export default async function HomePage() {
-  const [settings, categories, featured, newProducts, onSale, testimonials, faqs] =
+  const [settings, categories, featured, newProducts, onSale, testimonials, faqs, brands] =
     await Promise.all([
       getSiteSettings(),
       db.category.findMany({
@@ -89,6 +79,12 @@ export default async function HomePage() {
         where: { isActive: true },
         orderBy: { order: "asc" },
       }),
+      db.brand.findMany({
+        where: { isActive: true },
+        orderBy: [{ order: "asc" }, { name: "asc" }],
+        select: { id: true, name: true, slug: true, logo: true },
+        take: 12,
+      }),
     ]);
 
   return (
@@ -101,6 +97,8 @@ export default async function HomePage() {
       />
 
       <CategoriesSection categories={categories as unknown as CategoryWithChildren[]} />
+
+      <BrandsSection brands={brands} />
 
       {featured.length > 0 && (
         <FeaturedCarousel

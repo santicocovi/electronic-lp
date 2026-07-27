@@ -15,10 +15,14 @@ interface CatalogFiltersProps {
   brands: { id: string; name: string; slug: string }[];
   priceRange: { min: number; max: number };
   onFilter: (key: string, value: string | null) => void;
+  /** Applies several params in a single navigation. */
+  onFilterMany: (changes: Record<string, string | null>) => void;
+  /** When set, the category is fixed by the route and its filter is hidden. */
+  lockedCategorySlug?: string;
 }
 
 export function CatalogFilters({
-  open, onClose, categories, brands, priceRange, onFilter
+  open, onClose, categories, brands, priceRange, onFilter, onFilterMany, lockedCategorySlug,
 }: CatalogFiltersProps) {
   const searchParams = useSearchParams();
   const [priceValues, setPriceValues] = useState([priceRange.min, priceRange.max]);
@@ -28,8 +32,10 @@ export function CatalogFilters({
   const inStock = searchParams.get("inStock") === "true";
 
   function applyPrice() {
-    onFilter("minPrice", String(priceValues[0]));
-    onFilter("maxPrice", String(priceValues[1]));
+    onFilterMany({
+      minPrice: String(priceValues[0]),
+      maxPrice: String(priceValues[1]),
+    });
   }
 
   return (
@@ -58,8 +64,8 @@ export function CatalogFilters({
             </div>
 
             <div className="p-6 space-y-8">
-              {/* Category */}
-              <div>
+              {/* Category — hidden when the route already fixes it */}
+              <div hidden={!!lockedCategorySlug}>
                 <h3 className="font-semibold text-sm text-gray-500 uppercase tracking-wider mb-3">
                   Categoría
                 </h3>
@@ -170,11 +176,10 @@ export function CatalogFilters({
                 variant="outline"
                 className="w-full rounded-xl"
                 onClick={() => {
-                  onFilter("category", null);
-                  onFilter("brand", null);
-                  onFilter("minPrice", null);
-                  onFilter("maxPrice", null);
-                  onFilter("inStock", null);
+                  onFilterMany({
+                    category: null, brand: null,
+                    minPrice: null, maxPrice: null, inStock: null,
+                  });
                   onClose();
                 }}
               >

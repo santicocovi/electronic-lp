@@ -3,26 +3,29 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Heart, ShoppingCart, MessageCircle } from "lucide-react";
+import { ShoppingCart, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatPrice, calculateDiscount, getProductWhatsAppUrl } from "@/lib/utils";
 import { useCartStore } from "@/hooks/use-cart";
 import { toast } from "@/hooks/use-toast";
+import { WishlistButton } from "@/components/shop/product/wishlist-button";
 import type { ProductWithRelations } from "@/types";
 
 interface ProductCardProps {
   product: ProductWithRelations;
   className?: string;
+  /** Whether the signed-in user already saved this product. */
+  isSaved?: boolean;
 }
 
-export function ProductCard({ product, className }: ProductCardProps) {
+export function ProductCard({ product, className, isSaved = false }: ProductCardProps) {
   const addItem = useCartStore((s) => s.addItem);
 
   const mainImage =
     product.images.find((i) => i.isMain)?.url ??
     product.images[0]?.url ??
-    "/images/placeholder.png";
+    "/images/placeholder.svg";
 
   const discount = calculateDiscount(product.comparePrice, product.price);
   const inStock = product.stock > 0;
@@ -77,7 +80,12 @@ export function ProductCard({ product, className }: ProductCardProps) {
           </div>
 
           {/* Quick actions */}
-          <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
+          <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0 focus-within:translate-x-0">
+            <WishlistButton
+              productId={product.id}
+              initialSaved={isSaved}
+              className="w-9 h-9 bg-white rounded-xl shadow-sm hover:bg-red-50"
+            />
             <button
               type="button"
               onClick={(e) => {

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" role="img" aria-label="Imagen no disponible">
+  <rect width="400" height="400" fill="#F3F4F6"/>
+  <g fill="none" stroke="#C7CDD6" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="120" y="140" width="160" height="130" rx="14"/>
+    <path d="M120 232l38-34a16 16 0 0 1 21 0l35 31"/>
+    <path d="M214 244l26-24a16 16 0 0 1 21 0l19 17"/>
+    <circle cx="176" cy="180" r="14"/>
+  </g>
+  <text x="200" y="316" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="20" fill="#9AA3AF" text-anchor="middle">Sin imagen</text>
+</svg>

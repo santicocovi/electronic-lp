@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { serializeProducts } from "@/lib/serialize";
 import type { FilterParams, PaginatedResult, ProductWithRelations } from "@/types";
 
 const PRODUCT_SELECT = {
@@ -74,7 +75,7 @@ export async function getProducts(
   ]);
 
   return {
-    items: items as unknown as ProductWithRelations[],
+    items: serializeProducts(items),
     total,
     page,
     limit,

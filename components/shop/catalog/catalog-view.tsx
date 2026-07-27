@@ -18,6 +18,8 @@ interface CatalogViewProps {
   categories: { id: string; name: string; slug: string; parentId: string | null }[];
   brands: { id: string; name: string; slug: string }[];
   priceRange: { min: number; max: number };
+  /** Set on /categories/[slug], where the category is fixed by the route. */
+  lockedCategorySlug?: string;
 }
 
 const SORT_OPTIONS = [
@@ -28,7 +30,9 @@ const SORT_OPTIONS = [
   { value: "name_asc", label: "A–Z" },
 ];
 
-export function CatalogView({ initialFilters, categories, brands, priceRange }: CatalogViewProps) {
+export function CatalogView({
+  initialFilters, categories, brands, priceRange, lockedCategorySlug,
+}: CatalogViewProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -44,12 +48,22 @@ export function CatalogView({ initialFilters, categories, brands, priceRange }: 
     });
   }, [searchParams.toString()]);
 
-  function updateParam(key: string, value: string | null) {
+  /**
+   * Applies every change in one push. Calling this once per key would drop all
+   * but the last change, since `searchParams` doesn't update between calls.
+   */
+  function updateParams(changes: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
-    if (value) params.set(key, value);
-    else params.delete(key);
+    for (const [key, value] of Object.entries(changes)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
     params.delete("page");
     router.push(`${pathname}?${params.toString()}`);
+  }
+
+  function updateParam(key: string, value: string | null) {
+    updateParams({ [key]: value });
   }
 
   return (
@@ -149,6 +163,8 @@ export function CatalogView({ initialFilters, categories, brands, priceRange }: 
         brands={brands}
         priceRange={priceRange}
         onFilter={updateParam}
+        onFilterMany={updateParams}
+        lockedCategorySlug={lockedCategorySlug}
       />
     </div>
   );

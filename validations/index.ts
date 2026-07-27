@@ -46,6 +46,28 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+// ─── PROFILE ─────────────────────────────────────────────────
+
+export const profileSchema = z.object({
+  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
+  phone: z.string().optional(),
+});
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Ingresá tu contraseña actual"),
+    password: z
+      .string()
+      .min(8, "La contraseña debe tener al menos 8 caracteres")
+      .regex(/[A-Z]/, "Debe contener al menos una mayúscula")
+      .regex(/[0-9]/, "Debe contener al menos un número"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ["confirmPassword"],
+  });
+
 // ─── ADDRESS ─────────────────────────────────────────────────
 
 export const addressSchema = z.object({
@@ -166,6 +188,8 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type AddressInput = z.infer<typeof addressSchema>;
+export type ProfileInput = z.infer<typeof profileSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export type ContactInput = z.infer<typeof contactSchema>;
 export type NewsletterInput = z.infer<typeof newsletterSchema>;

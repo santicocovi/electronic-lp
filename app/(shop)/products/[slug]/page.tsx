@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
+import { serializeProduct, serializeProducts } from "@/lib/serialize";
 import { ProductGallery } from "@/components/shop/product/product-gallery";
 import { ProductInfo } from "@/components/shop/product/product-info";
 import { ProductSpecs } from "@/components/shop/product/product-specs";
@@ -15,7 +17,7 @@ const PRODUCT_SELECT = {
   id: true, name: true, slug: true, shortDescription: true, description: true,
   sku: true, price: true, comparePrice: true, stock: true, isNew: true,
   isOnSale: true, isFeatured: true, freeShipping: true, salesCount: true,
-  warranty: true, isActive: true, createdAt: true, internalCode: true,
+  warranty: true, isActive: true, createdAt: true, internalCode: true, categoryId: true,
   images: { select: { id: true, url: true, alt: true, order: true, isMain: true }, orderBy: { order: "asc" as const } },
   variants: { select: { id: true, name: true, value: true, type: true, price: true, stock: true, sku: true, image: true, isActive: true, order: true }, where: { isActive: true }, orderBy: { order: "asc" as const } },
   specs: { select: { id: true, group: true, label: true, value: true, order: true }, orderBy: { order: "asc" as const } },
@@ -47,24 +49,36 @@ export default async function ProductPage({ params }: Props) {
   // Increment view count (fire & forget)
   db.product.update({ where: { slug }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
-  // Related products
-  const related = await db.product.findMany({
-    where: {
-      isActive: true,
-      categoryId: (product as unknown as { categoryId?: string | null }).categoryId ?? undefined,
-      slug: { not: slug },
-    },
-    select: PRODUCT_SELECT,
-    take: 4,
-    orderBy: { salesCount: "desc" },
-  });
+  const [related, session] = await Promise.all([
+    db.product.findMany({
+      where: {
+        isActive: true,
+        // Only narrow by category when the product actually has one, otherwise
+        // `undefined` would silently drop the filter and match anything.
+        ...(product.categoryId ? { categoryId: product.categoryId } : {}),
+        slug: { not: slug },
+      },
+      select: PRODUCT_SELECT,
+      take: 4,
+      orderBy: { salesCount: "desc" },
+    }),
+    auth(),
+  ]);
+
+  const userId = (session?.user as { id?: string })?.id;
+  const isSaved = userId
+    ? !!(await db.wishlistItem.findUnique({
+        where: { userId_productId: { userId, productId: product.id } },
+        select: { id: true },
+      }))
+    : false;
 
   return (
     <div className="pt-16">
       <div className="container mx-auto px-4 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
-          <ProductGallery product={product as unknown as ProductWithRelations} />
-          <ProductInfo product={product as unknown as ProductWithRelations} />
+          <ProductGallery product={serializeProduct(product)} />
+          <ProductInfo product={serializeProduct(product)} isSaved={isSaved} />
         </div>
 
         {product.specs.length > 0 && (
@@ -78,7 +92,7 @@ export default async function ProductPage({ params }: Props) {
         <ProductsSection
           tag="También te puede interesar"
           title="Productos relacionados"
-          products={related as unknown as ProductWithRelations[]}
+          products={serializeProducts(related)}
         />
       )}
     </div>

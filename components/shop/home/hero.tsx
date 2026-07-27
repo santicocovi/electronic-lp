@@ -82,7 +82,7 @@ export function Hero({ videoUrl, title, subtitle, cta }: HeroProps) {
               <Button
                 size="lg"
                 variant="outline"
-                className="rounded-full px-8 border-white/40 text-white hover:bg-white/10 font-semibold backdrop-blur-sm"
+                className="rounded-full px-8 bg-transparent border-white/40 text-white hover:bg-white/10 hover:text-white font-semibold backdrop-blur-sm"
               >
                 Ver ofertas
               </Button>

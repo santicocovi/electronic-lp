@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ShoppingCart, MessageCircle, Share2, Heart, Check,
+  ShoppingCart, MessageCircle, Share2, Check,
   Shield, Truck, RefreshCcw, Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,16 @@ import {
   getProductWhatsAppUrl, getShareWhatsAppUrl, getAppUrl,
 } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { WishlistButton } from "@/components/shop/product/wishlist-button";
 import type { ProductWithRelations, ProductVariantType } from "@/types";
 
 interface ProductInfoProps {
   product: ProductWithRelations;
+  /** Whether the signed-in user already saved this product. */
+  isSaved?: boolean;
 }
 
-export function ProductInfo({ product }: ProductInfoProps) {
+export function ProductInfo({ product, isSaved = false }: ProductInfoProps) {
   const addItem = useCartStore((s) => s.addItem);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantType | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -32,7 +35,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
   const stock = selectedVariant?.stock ?? product.stock;
   const discount = calculateDiscount(product.comparePrice, price);
   const { label: stockLabel, color: stockColor } = getStockLabel(stock);
-  const mainImage = product.images.find((i) => i.isMain)?.url ?? product.images[0]?.url ?? "/images/placeholder.png";
+  const mainImage = product.images.find((i) => i.isMain)?.url ?? product.images[0]?.url ?? "/images/placeholder.svg";
 
   // Group variants by type
   const variantGroups = product.variants.reduce<Record<string, ProductVariantType[]>>((acc, v) => {
@@ -187,6 +190,12 @@ export function ProductInfo({ product }: ProductInfoProps) {
           <MessageCircle className="w-5 h-5" />
           Consultar
         </a>
+
+        <WishlistButton
+          productId={product.id}
+          initialSaved={isSaved}
+          className="w-14 h-14 rounded-2xl border-2 border-gray-200 hover:bg-red-50 flex-shrink-0"
+        />
 
         <a
           href={shareUrl}

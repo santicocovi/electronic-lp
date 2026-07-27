@@ -14,7 +14,7 @@ interface ProductGalleryProps {
 export function ProductGallery({ product }: ProductGalleryProps) {
   const images = product.images.length > 0
     ? product.images
-    : [{ id: "placeholder", url: "/images/placeholder.png", alt: product.name, order: 0, isMain: true }];
+    : [{ id: "placeholder", url: "/images/placeholder.svg", alt: product.name, order: 0, isMain: true }];
 
   const [current, setCurrent] = useState(0);
   const [zoomed, setZoomed] = useState(false);
