@@ -30,7 +30,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
 
   const price = selectedVariant?.price ?? product.price;
   const stock = selectedVariant?.stock ?? product.stock;
-  const discount = calculateDiscount(price, product.comparePrice);
+  const discount = calculateDiscount(product.comparePrice, price);
   const { label: stockLabel, color: stockColor } = getStockLabel(stock);
   const mainImage = product.images.find((i) => i.isMain)?.url ?? product.images[0]?.url ?? "/images/placeholder.png";
 

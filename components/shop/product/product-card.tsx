@@ -24,7 +24,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
     product.images[0]?.url ??
     "/images/placeholder.png";
 
-  const discount = calculateDiscount(product.price, product.comparePrice);
+  const discount = calculateDiscount(product.comparePrice, product.price);
   const inStock = product.stock > 0;
 
   function handleAddToCart(e: React.MouseEvent) {
@@ -78,16 +78,18 @@ export function ProductCard({ product, className }: ProductCardProps) {
 
           {/* Quick actions */}
           <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
-            <a
-              href={getProductWhatsAppUrl(product.name)}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(getProductWhatsAppUrl(product.name), "_blank", "noopener,noreferrer");
+              }}
               className="w-9 h-9 bg-white rounded-xl shadow-sm flex items-center justify-center hover:bg-green-50 transition-colors"
               title="Consultar por WhatsApp"
             >
               <MessageCircle className="w-4 h-4 text-green-600" />
-            </a>
+            </button>
           </div>
 
           {/* Add to cart overlay */}

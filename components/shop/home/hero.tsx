@@ -33,6 +33,7 @@ export function Hero({ videoUrl, title, subtitle, cta }: HeroProps) {
           muted
           loop
           playsInline
+          preload="auto"
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
         >

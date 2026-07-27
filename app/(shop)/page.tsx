@@ -4,6 +4,7 @@ import { getSiteSettings } from "@/lib/settings";
 import { Hero } from "@/components/shop/home/hero";
 import { CategoriesSection } from "@/components/shop/home/categories-section";
 import { ProductsSection } from "@/components/shop/home/products-section";
+import { FeaturedCarousel } from "@/components/shop/home/featured-carousel";
 import { BenefitsSection } from "@/components/shop/home/benefits-section";
 import { TestimonialsSection } from "@/components/shop/home/testimonials-section";
 import { FAQSection } from "@/components/shop/home/faq-section";
@@ -34,6 +35,19 @@ const PRODUCT_SELECT = {
   brand: { select: { id: true, name: true, slug: true, logo: true } },
   category: { select: { id: true, name: true, slug: true } },
 };
+
+// Prisma Decimal fields can't be passed as props to Client Components — coerce to plain numbers.
+function serializeProducts(products: Record<string, unknown>[]): ProductWithRelations[] {
+  return products.map((p) => ({
+    ...p,
+    price: Number(p.price),
+    comparePrice: p.comparePrice != null ? Number(p.comparePrice) : null,
+    variants: (p.variants as { price: unknown }[]).map((v) => ({
+      ...v,
+      price: v.price != null ? Number(v.price) : null,
+    })),
+  })) as unknown as ProductWithRelations[];
+}
 
 export default async function HomePage() {
   const [settings, categories, featured, newProducts, onSale, testimonials, faqs] =
@@ -89,10 +103,10 @@ export default async function HomePage() {
       <CategoriesSection categories={categories as unknown as CategoryWithChildren[]} />
 
       {featured.length > 0 && (
-        <ProductsSection
+        <FeaturedCarousel
           tag="Selección"
           title="Productos destacados"
-          products={featured as unknown as ProductWithRelations[]}
+          products={serializeProducts(featured)}
           viewAllHref="/products?filter=featured"
         />
       )}
@@ -103,7 +117,7 @@ export default async function HomePage() {
             tag="Nuevos"
             title="Últimos ingresos"
             subtitle="Los productos más recientes de nuestra tienda"
-            products={newProducts as unknown as ProductWithRelations[]}
+            products={serializeProducts(newProducts)}
             viewAllHref="/products?filter=new"
           />
         </div>
@@ -114,7 +128,7 @@ export default async function HomePage() {
           tag="Ofertas"
           title="Productos en oferta"
           subtitle="Aprovechá los mejores precios"
-          products={onSale as unknown as ProductWithRelations[]}
+          products={serializeProducts(onSale)}
           viewAllHref="/products?filter=sale"
         />
       )}

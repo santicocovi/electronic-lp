@@ -14,8 +14,8 @@ export function formatPrice(price: number, currency = "ARS"): string {
   }).format(price)
 }
 
-export function calculateDiscount(originalPrice: number, salePrice: number | null | undefined): number {
-  if (!salePrice || originalPrice <= 0) return 0
+export function calculateDiscount(originalPrice: number | null | undefined, salePrice: number): number {
+  if (!originalPrice || originalPrice <= 0 || !salePrice) return 0
   return Math.round(((originalPrice - salePrice) / originalPrice) * 100)
 }
 

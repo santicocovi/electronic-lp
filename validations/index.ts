@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+const optionalNumber = z.preprocess(
+  (val) => (val === "" || val === null || val === undefined ? undefined : val),
+  z.coerce.number().optional()
+);
+
 // ─── AUTH ────────────────────────────────────────────────────
 
 export const loginSchema = z.object({
@@ -99,11 +104,11 @@ export const productSchema = z.object({
   sku: z.string().optional(),
   internalCode: z.string().optional(),
   price: z.coerce.number().positive("El precio debe ser mayor a 0"),
-  comparePrice: z.coerce.number().optional(),
-  costPrice: z.coerce.number().optional(),
+  comparePrice: optionalNumber,
+  costPrice: optionalNumber,
   stock: z.coerce.number().int().min(0),
   lowStockAlert: z.coerce.number().int().min(0).default(5),
-  weight: z.coerce.number().optional(),
+  weight: optionalNumber,
   warranty: z.string().optional(),
   isActive: z.boolean().default(true),
   isFeatured: z.boolean().default(false),
