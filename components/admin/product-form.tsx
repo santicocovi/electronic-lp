@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -40,6 +40,15 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
   const router = useRouter();
   const isEdit = !!initialData;
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const categoryItems = useMemo(
+    () => Object.fromEntries(categories.map((c) => [c.id, c.name])),
+    [categories]
+  );
+  const brandItems = useMemo(
+    () => Object.fromEntries(brands.map((b) => [b.id, b.name])),
+    [brands]
+  );
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -212,7 +221,7 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
               control={control}
               name="categoryId"
               render={({ field }) => (
-                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                <Select value={field.value ?? ""} onValueChange={field.onChange} items={categoryItems}>
                   <SelectTrigger className="mt-1 w-full rounded-xl">
                     <SelectValue placeholder="Elegir categoría" />
                   </SelectTrigger>
@@ -231,7 +240,7 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
               control={control}
               name="brandId"
               render={({ field }) => (
-                <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                <Select value={field.value ?? ""} onValueChange={field.onChange} items={brandItems}>
                   <SelectTrigger className="mt-1 w-full rounded-xl">
                     <SelectValue placeholder="Elegir marca" />
                   </SelectTrigger>
