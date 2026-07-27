@@ -16,8 +16,23 @@ export async function updateOrderStatus(id: string, status: string): Promise<Act
     await requireAdmin();
     await db.order.update({ where: { id }, data: { status: status as never } });
     revalidatePath("/admin/orders");
+    revalidatePath(`/admin/orders/${id}`);
     return { success: true };
   } catch {
     return { success: false, error: "Error al actualizar el pedido" };
+  }
+}
+
+export async function updateOrderTracking(id: string, trackingNumber: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    await db.order.update({
+      where: { id },
+      data: { trackingNumber: trackingNumber.trim() || null },
+    });
+    revalidatePath(`/admin/orders/${id}`);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Error al guardar el seguimiento" };
   }
 }
