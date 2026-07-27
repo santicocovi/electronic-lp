@@ -20,11 +20,12 @@ enum Role {
 }
 
 enum OrderStatus {
-  PENDING
-  APPROVED
-  PROCESSING
-  SHIPPED
-  DELIVERED
+  PENDING // Pedido recibido
+  APPROVED // Pago confirmado
+  PROCESSING // Preparando pedido
+  SHIPPED // Enviado
+  OUT_FOR_DELIVERY // En reparto
+  DELIVERED // Entregado
   CANCELLED
   REFUNDED
 }
@@ -41,6 +42,15 @@ enum PaymentMethod {
   MERCADOPAGO
   TRANSFER
   CASH
+  USDT
+}
+
+/// Moneda en la que se cerró la operación. Los precios de catálogo se guardan
+/// en la moneda base de la tienda (ver SiteSetting `base_currency`, USD por
+/// defecto) y el importe en pesos se deriva con la cotización del día.
+enum Currency {
+  USD
+  ARS
 }
 
 enum CouponType {
@@ -149,20 +159,20 @@ model Address {
 // ─── CATALOG ────────────────────────────────────────────────
 
 model Category {
-  id          String     @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
-  slug        String     @unique
-  description String?    @db.Text
+  slug        String   @unique
+  description String?  @db.Text
   image       String?
   icon        String?
   parentId    String?
-  order       Int        @default(0)
-  isActive    Boolean    @default(true)
-  showInNav   Boolean    @default(true)
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  showInNav   Boolean  @default(true)
   metaTitle   String?
   metaDesc    String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   parent   Category?  @relation("CategoryChildren", fields: [parentId], references: [id])
   children Category[] @relation("CategoryChildren")
@@ -185,47 +195,52 @@ model Brand {
 }
 
 model Product {
-  id               String   @id @default(cuid())
+  id               String          @id @default(cuid())
   name             String
-  slug             String   @unique
-  shortDescription String?  @db.Text
-  description      String?  @db.Text
-  sku              String?  @unique
+  slug             String          @unique
+  shortDescription String?         @db.Text
+  description      String?         @db.Text
+  sku              String?         @unique
   internalCode     String?
-  price            Decimal  @db.Decimal(10, 2)
-  comparePrice     Decimal? @db.Decimal(10, 2)
-  costPrice        Decimal? @db.Decimal(10, 2)
-  stock            Int      @default(0)
-  lowStockAlert    Int      @default(5)
+  price            Decimal         @db.Decimal(10, 2)
+  comparePrice     Decimal?        @db.Decimal(10, 2)
+  costPrice        Decimal?        @db.Decimal(10, 2)
+  stock            Int             @default(0)
+  lowStockAlert    Int             @default(5)
   stockAlert       StockAlertLevel @default(NORMAL)
-  weight           Decimal? @db.Decimal(8, 2)
+  weight           Decimal?        @db.Decimal(8, 2)
   warranty         String?
-  isActive         Boolean  @default(true)
-  isFeatured       Boolean  @default(false)
-  isNew            Boolean  @default(false)
-  isOnSale         Boolean  @default(false)
-  freeShipping     Boolean  @default(false)
-  salesCount       Int      @default(0)
-  viewCount        Int      @default(0)
+  isActive         Boolean         @default(true)
+  isFeatured       Boolean         @default(false)
+  isNew            Boolean         @default(false)
+  isOnSale         Boolean         @default(false)
+  freeShipping     Boolean         @default(false)
+  salesCount       Int             @default(0)
+  viewCount        Int             @default(0)
   metaTitle        String?
   metaDesc         String?
   categoryId       String?
   brandId          String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
-  category    Category?         @relation(fields: [categoryId], references: [id])
-  brand       Brand?            @relation(fields: [brandId], references: [id])
-  images      ProductImage[]
-  variants    ProductVariant[]
-  specs       ProductSpec[]
-  tags        ProductTag[]
-  reviews     Review[]
-  cartItems   CartItem[]
-  orderItems  OrderItem[]
-  wishlist    WishlistItem[]
-  related     Product[]         @relation("RelatedProducts")
-  relatedTo   Product[]         @relation("RelatedProducts")
+  category   Category?        @relation(fields: [categoryId], references: [id])
+  brand      Brand?           @relation(fields: [brandId], references: [id])
+  images     ProductImage[]
+  variants   ProductVariant[]
+  specs      ProductSpec[]
+  tags       ProductTag[]
+  reviews    Review[]
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+  wishlist   WishlistItem[]
+  related    Product[]        @relation("RelatedProducts")
+  relatedTo  Product[]        @relation("RelatedProducts")
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([isActive, isFeatured])
+  @@index([createdAt])
 }
 
 model ProductImage {
@@ -241,19 +256,19 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id         String   @id @default(cuid())
-  productId  String
-  name       String
-  value      String
-  type       String   // color | storage | memory | size | etc
-  price      Decimal? @db.Decimal(10, 2)
-  stock      Int      @default(0)
-  sku        String?
-  image      String?
-  isActive   Boolean  @default(true)
-  order      Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  productId String
+  name      String
+  value     String
+  type      String // color | storage | memory | size | etc
+  price     Decimal? @db.Decimal(10, 2)
+  stock     Int      @default(0)
+  sku       String?
+  image     String?
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
   cartItems  CartItem[]
@@ -272,7 +287,7 @@ model ProductSpec {
 }
 
 model ProductTag {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   productId String
   tag       String
 
@@ -280,15 +295,15 @@ model ProductTag {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  productId String
-  userId    String
-  rating    Int
-  title     String?
-  body      String?  @db.Text
-  isApproved Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  productId  String
+  userId     String
+  rating     Int
+  title      String?
+  body       String?  @db.Text
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -334,8 +349,8 @@ model Order {
   status          OrderStatus   @default(PENDING)
   paymentStatus   PaymentStatus @default(PENDING)
   paymentMethod   PaymentMethod @default(MERCADOPAGO)
-  paymentId       String?       // MercadoPago payment ID
-  preferenceId    String?       // MercadoPago preference ID
+  paymentId       String? // MercadoPago payment ID
+  preferenceId    String? // MercadoPago preference ID
   subtotal        Decimal       @db.Decimal(10, 2)
   shippingCost    Decimal       @default(0) @db.Decimal(10, 2)
   discount        Decimal       @default(0) @db.Decimal(10, 2)
@@ -345,20 +360,57 @@ model Order {
   notes           String?       @db.Text
   trackingNumber  String?
   shippingMethod  String?
-  // Snapshot de dirección al momento de la compra
-  shippingName    String?
-  shippingStreet  String?
-  shippingCity    String?
-  shippingProvince String?
-  shippingPostal  String?
-  shippingPhone   String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  shippingCarrier String? // Empresa de envío (Andreani, OCA, Correo Argentino, propio…)
+  trackingUrl     String? // Link de seguimiento del transportista
 
-  user    User        @relation(fields: [userId], references: [id])
-  address Address?    @relation(fields: [addressId], references: [id])
+  // ── Moneda y recargos ──
+  // `subtotal`, `discount`, `shippingCost` y `total` quedan expresados en
+  // `currency`. `exchangeRate` guarda la cotización usada al cerrar el pedido
+  // para que el importe histórico no cambie si el dólar se mueve después.
+  currency         Currency  @default(USD)
+  exchangeRate     Decimal?  @db.Decimal(12, 4)
+  surchargePercent Decimal   @default(0) @db.Decimal(5, 2) // Recargo del medio de pago
+  surchargeAmount  Decimal   @default(0) @db.Decimal(10, 2)
+  totalArs         Decimal?  @db.Decimal(12, 2) // Importe equivalente en pesos
+  paidAt           DateTime?
+  // Snapshot de dirección al momento de la compra
+  shippingName     String?
+  shippingStreet   String?
+  shippingCity     String?
+  shippingProvince String?
+  shippingPostal   String?
+  shippingPhone    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user    User                 @relation(fields: [userId], references: [id])
+  address Address?             @relation(fields: [addressId], references: [id])
   items   OrderItem[]
-  coupon  Coupon?     @relation(fields: [couponId], references: [id])
+  coupon  Coupon?              @relation(fields: [couponId], references: [id])
+  history OrderStatusHistory[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+/// Bitácora de cambios de estado de un pedido: alimenta el seguimiento que ve
+/// el cliente y deja rastro de quién hizo cada cambio en el panel.
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  note      String?     @db.Text
+  /// Email del administrador que hizo el cambio; null si fue automático (webhook).
+  changedBy String?
+  /// true cuando se le notificó al cliente por email.
+  notified  Boolean     @default(false)
+  createdAt DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
 }
 
 model OrderItem {
@@ -372,29 +424,29 @@ model OrderItem {
   quantity  Int
   subtotal  Decimal @db.Decimal(10, 2)
 
-  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product        @relation(fields: [productId], references: [id])
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product         @relation(fields: [productId], references: [id])
   variant ProductVariant? @relation(fields: [variantId], references: [id])
 }
 
 // ─── PROMOTIONS ─────────────────────────────────────────────
 
 model Coupon {
-  id              String     @id @default(cuid())
-  code            String     @unique
-  description     String?
-  type            CouponType
-  value           Decimal    @db.Decimal(10, 2)
-  minOrderAmount  Decimal?   @db.Decimal(10, 2)
-  maxDiscount     Decimal?   @db.Decimal(10, 2)
-  usageLimit      Int?
-  usageCount      Int        @default(0)
-  perUserLimit    Int?
-  isActive        Boolean    @default(true)
-  startsAt        DateTime?
-  expiresAt       DateTime?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id             String     @id @default(cuid())
+  code           String     @unique
+  description    String?
+  type           CouponType
+  value          Decimal    @db.Decimal(10, 2)
+  minOrderAmount Decimal?   @db.Decimal(10, 2)
+  maxDiscount    Decimal?   @db.Decimal(10, 2)
+  usageLimit     Int?
+  usageCount     Int        @default(0)
+  perUserLimit   Int?
+  isActive       Boolean    @default(true)
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   orders Order[]
 }
@@ -412,33 +464,33 @@ model SiteSetting {
 }
 
 model Banner {
-  id          String   @id @default(cuid())
-  title       String?
-  subtitle    String?
-  image       String
-  imageAlt    String?
-  link        String?
-  linkLabel   String?
-  position    String   @default("hero") // hero | promo | sidebar
-  order       Int      @default(0)
-  isActive    Boolean  @default(true)
-  startsAt    DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String    @id @default(cuid())
+  title     String?
+  subtitle  String?
+  image     String
+  imageAlt  String?
+  link      String?
+  linkLabel String?
+  position  String    @default("hero") // hero | promo | sidebar
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  startsAt  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model ShippingMethod {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  price       Decimal  @db.Decimal(10, 2)
-  freeFrom    Decimal? @db.Decimal(10, 2)
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  price         Decimal  @db.Decimal(10, 2)
+  freeFrom      Decimal? @db.Decimal(10, 2)
   estimatedDays String?
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive      Boolean  @default(true)
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model FAQ {
@@ -466,8 +518,8 @@ model Testimonial {
 }
 
 model NewsletterSubscriber {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  isActive    Boolean  @default(true)
+  id           String   @id @default(cuid())
+  email        String   @unique
+  isActive     Boolean  @default(true)
   subscribedAt DateTime @default(now())
 }

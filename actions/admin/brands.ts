@@ -1,19 +1,11 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 import { slugify } from "@/lib/utils";
 import type { ActionResult } from "@/types";
 import type { BrandInput } from "@/validations";
 import { revalidatePath } from "next/cache";
-
-async function requireAdmin() {
-  const session = await auth();
-  const role = (session?.user as { role?: string })?.role;
-  if (!session || (role !== "ADMIN" && role !== "SUPERADMIN")) {
-    throw new Error("Unauthorized");
-  }
-}
 
 function revalidateBrands() {
   revalidatePath("/admin/brands");

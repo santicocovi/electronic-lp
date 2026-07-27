@@ -105,11 +105,17 @@ export const checkoutSchema = z.object({
 // ─── CONTACT ─────────────────────────────────────────────────
 
 export const contactSchema = z.object({
-  name: z.string().min(2, "El nombre es requerido"),
-  email: z.string().email("Email inválido"),
-  phone: z.string().optional(),
-  subject: z.string().min(3, "El asunto es requerido"),
-  message: z.string().min(10, "El mensaje debe tener al menos 10 caracteres"),
+  name: z.string().trim().min(2, "El nombre es requerido").max(100, "El nombre es demasiado largo"),
+  email: z.string().trim().email("Email inválido").max(200),
+  phone: z.string().trim().max(30, "El teléfono es demasiado largo").optional(),
+  subject: z.string().trim().min(3, "El asunto es requerido").max(150, "El asunto es demasiado largo"),
+  message: z
+    .string()
+    .trim()
+    .min(10, "El mensaje debe tener al menos 10 caracteres")
+    .max(5000, "El mensaje es demasiado largo"),
+  // Honeypot anti-spam: debe llegar vacío. Se valida en el endpoint.
+  website: z.string().optional(),
 });
 
 export const newsletterSchema = z.object({

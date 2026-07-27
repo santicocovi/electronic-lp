@@ -1,122 +1,244 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Expand, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ProductWithRelations } from "@/types";
+
+/**
+ * Galería de producto.
+ *
+ * Estética sobria: fondo neutro, mucho aire alrededor del producto, controles
+ * que aparecen al acercar el puntero y no compiten con la imagen. El visor
+ * ampliado es un diálogo modal accesible: atrapa Escape, se puede navegar con
+ * las flechas y bloquea el scroll del fondo mientras está abierto.
+ */
 
 interface ProductGalleryProps {
   product: ProductWithRelations;
 }
 
 export function ProductGallery({ product }: ProductGalleryProps) {
-  const images = product.images.length > 0
-    ? product.images
-    : [{ id: "placeholder", url: "/images/placeholder.svg", alt: product.name, order: 0, isMain: true }];
+  const reduceMotion = useReducedMotion();
+
+  const images =
+    product.images.length > 0
+      ? product.images
+      : [
+          {
+            id: "placeholder",
+            url: "/images/placeholder.svg",
+            alt: product.name,
+            order: 0,
+            isMain: true,
+          },
+        ];
 
   const [current, setCurrent] = useState(0);
   const [zoomed, setZoomed] = useState(false);
 
-  function prev() { setCurrent((i) => (i - 1 + images.length) % images.length); }
-  function next() { setCurrent((i) => (i + 1) % images.length); }
+  const total = images.length;
+
+  const prev = useCallback(() => setCurrent((i) => (i - 1 + total) % total), [total]);
+  const next = useCallback(() => setCurrent((i) => (i + 1) % total), [total]);
+
+  // Teclado: flechas para navegar, Escape para cerrar el visor.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "ArrowLeft") prev();
+      if (event.key === "ArrowRight") next();
+      if (event.key === "Escape") setZoomed(false);
+    }
+
+    if (!zoomed) return;
+
+    window.addEventListener("keydown", onKeyDown);
+    // Se evita el scroll del fondo mientras el visor está abierto.
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [zoomed, prev, next]);
+
+  const activeImage = images[current];
 
   return (
-    <div className="space-y-4">
-      {/* Main image */}
-      <div className="relative aspect-square bg-gray-50 rounded-3xl overflow-hidden group">
-        <AnimatePresence mode="wait">
+    <div className="lg:sticky lg:top-24">
+      {/* Imagen principal */}
+      <div className="group relative aspect-square overflow-hidden rounded-[28px] bg-[#f5f5f7]">
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div
-            key={current}
+            key={activeImage.id}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: reduceMotion ? 0 : 0.25, ease: "easeOut" }}
             className="absolute inset-0"
           >
             <Image
-              src={images[current].url}
-              alt={images[current].alt ?? product.name}
+              src={activeImage.url}
+              alt={activeImage.alt ?? product.name}
               fill
-              className="object-contain p-8 cursor-zoom-in"
+              className="object-contain p-10 sm:p-14"
               sizes="(max-width: 1024px) 100vw, 50vw"
               priority
-              onClick={() => setZoomed(true)}
             />
           </motion.div>
         </AnimatePresence>
 
-        {images.length > 1 && (
+        {/* Ampliar */}
+        <button
+          type="button"
+          onClick={() => setZoomed(true)}
+          aria-label="Ampliar imagen"
+          className="absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/85 text-gray-700 backdrop-blur-sm shadow-sm transition-all duration-300 hover:bg-white focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+        >
+          <Expand className="h-4 w-4" aria-hidden="true" />
+        </button>
+
+        {total > 1 && (
           <>
-            <button
-              onClick={prev}
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white rounded-xl shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={next}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white rounded-xl shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            <GalleryArrow side="left" onClick={prev} label="Imagen anterior" />
+            <GalleryArrow side="right" onClick={next} label="Imagen siguiente" />
+
+            {/* Contador discreto, útil en móvil donde no hay hover. */}
+            <span className="absolute bottom-4 left-4 rounded-full bg-white/85 px-2.5 py-1 text-xs font-medium text-gray-600 backdrop-blur-sm sm:hidden">
+              {current + 1} / {total}
+            </span>
           </>
         )}
-
-        <button
-          onClick={() => setZoomed(true)}
-          className="absolute bottom-3 right-3 w-9 h-9 bg-white rounded-xl shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <ZoomIn className="w-4 h-4 text-gray-600" />
-        </button>
       </div>
 
-      {/* Thumbnails */}
-      {images.length > 1 && (
-        <div className="flex gap-3 overflow-x-auto pb-1">
+      {/* Miniaturas */}
+      {total > 1 && (
+        <div
+          className="mt-4 flex gap-3 overflow-x-auto pb-1"
+          role="tablist"
+          aria-label="Imágenes del producto"
+        >
           {images.map((img, i) => (
             <button
               key={img.id}
+              type="button"
+              role="tab"
+              aria-selected={i === current}
+              aria-label={`Ver imagen ${i + 1} de ${total}`}
               onClick={() => setCurrent(i)}
               className={cn(
-                "flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all",
-                i === current ? "border-brand-blue-mid" : "border-transparent hover:border-gray-200"
+                "relative h-[68px] w-[68px] shrink-0 overflow-hidden rounded-2xl bg-[#f5f5f7] transition-all duration-200",
+                "ring-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900",
+                i === current ? "ring-gray-900" : "ring-gray-200/70 hover:ring-gray-300"
               )}
             >
               <Image
                 src={img.url}
-                alt={img.alt ?? ""}
-                width={64}
-                height={64}
-                className="object-contain w-full h-full p-1 bg-gray-50"
+                alt=""
+                fill
+                sizes="68px"
+                className="object-contain p-2"
               />
             </button>
           ))}
         </div>
       )}
 
-      {/* Zoom modal */}
+      {/* Visor ampliado */}
       <AnimatePresence>
         {zoomed && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+            transition={{ duration: reduceMotion ? 0 : 0.2 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Imagen ampliada de ${product.name}`}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-white/98 p-4 backdrop-blur-sm"
             onClick={() => setZoomed(false)}
           >
-            <div className="relative max-w-3xl w-full aspect-square">
+            <button
+              type="button"
+              onClick={() => setZoomed(false)}
+              aria-label="Cerrar"
+              className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+
+            <div
+              className="relative aspect-square w-full max-w-4xl"
+              onClick={(e) => e.stopPropagation()}
+            >
               <Image
-                src={images[current].url}
-                alt={images[current].alt ?? product.name}
+                src={activeImage.url}
+                alt={activeImage.alt ?? product.name}
                 fill
+                sizes="100vw"
                 className="object-contain"
               />
             </div>
+
+            {total > 1 && (
+              <>
+                <GalleryArrow
+                  side="left"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    prev();
+                  }}
+                  label="Imagen anterior"
+                  alwaysVisible
+                />
+                <GalleryArrow
+                  side="right"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    next();
+                  }}
+                  label="Imagen siguiente"
+                  alwaysVisible
+                />
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function GalleryArrow({
+  side,
+  onClick,
+  label,
+  alwaysVisible = false,
+}: {
+  side: "left" | "right";
+  onClick: (event: React.MouseEvent) => void;
+  label: string;
+  alwaysVisible?: boolean;
+}) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={cn(
+        "absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full",
+        "bg-white/85 text-gray-700 shadow-sm backdrop-blur-sm transition-all duration-300 hover:bg-white",
+        "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900",
+        side === "left" ? "left-4" : "right-4",
+        alwaysVisible ? "" : "sm:opacity-0 sm:group-hover:opacity-100"
+      )}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </button>
   );
 }

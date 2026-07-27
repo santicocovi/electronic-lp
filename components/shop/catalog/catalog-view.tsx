@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { SlidersHorizontal, LayoutGrid, List, X } from "lucide-react";
+import { SlidersHorizontal, LayoutGrid, List, X, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/shop/product/product-card";
 import { CatalogFilters } from "./catalog-filters";
@@ -123,9 +123,9 @@ export function CatalogView({
           </div>
         ) : result?.items.length === 0 ? (
           <div className="text-center py-24">
-            <p className="text-5xl mb-4">🔍</p>
+            <SearchX className="w-10 h-10 mx-auto mb-4 text-gray-300" aria-hidden="true" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No encontramos resultados</h3>
-            <p className="text-gray-500 mb-6">Probá con otros filtros o busqueda</p>
+            <p className="text-gray-500 mb-6">Probá con otros filtros o con otra búsqueda</p>
             <Button onClick={() => router.push(pathname)} variant="outline" className="rounded-xl">
               Limpiar filtros
             </Button>

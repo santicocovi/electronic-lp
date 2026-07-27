@@ -1,24 +1,22 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 import { slugify } from "@/lib/utils";
 import type { ActionResult } from "@/types";
 import type { CategoryInput } from "@/validations";
 import { revalidatePath } from "next/cache";
 
-async function requireAdmin() {
-  const session = await auth();
-  const role = (session?.user as { role?: string })?.role;
-  if (!session || (role !== "ADMIN" && role !== "SUPERADMIN")) {
-    throw new Error("Unauthorized");
-  }
-}
-
+/**
+ * Revalida todo lo que muestra categorías. Incluye el Hero y la sección de
+ * categorías de la portada, para que una categoría nueva aparezca sin tener
+ * que tocar código ni reiniciar el servidor.
+ */
 function revalidateCategories() {
   revalidatePath("/admin/categories");
   revalidatePath("/products");
-  revalidatePath("/");
+  revalidatePath("/categories", "layout");
+  revalidatePath("/", "page");
 }
 
 export async function createCategory(data: CategoryInput): Promise<ActionResult<{ id: string }>> {

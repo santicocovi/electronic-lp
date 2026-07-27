@@ -6,7 +6,7 @@ import { signOut } from "next-auth/react";
 import {
   LayoutDashboard, Package, Tag, Building2, ShoppingBag,
   Users, Percent, Settings, LogOut, Image, ChevronRight,
-  Home,
+  Home, Coins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/admin/orders", label: "Pedidos", icon: ShoppingBag },
   { href: "/admin/customers", label: "Clientes", icon: Users },
   { href: "/admin/promotions/coupons", label: "Cupones", icon: Percent },
+  { href: "/admin/settings/payments", label: "Pagos y monedas", icon: Coins },
   { href: "/admin/settings/general", label: "Configuración", icon: Settings },
 ];
 

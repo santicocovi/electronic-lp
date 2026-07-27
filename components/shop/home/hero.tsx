@@ -5,16 +5,33 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getCategoryIcon } from "@/lib/category-icons";
+
+/** Categoría tal como la necesita el Hero para sus accesos rápidos. */
+export interface HeroCategory {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 interface HeroProps {
   videoUrl: string;
   title: string;
   subtitle: string;
   cta: string;
+  /**
+   * Accesos directos a categorías. Vienen de la base a través del Server
+   * Component de la portada, así que al crear una categoría en el panel
+   * aparece acá sola, sin tocar código.
+   */
+  categories?: HeroCategory[];
 }
 
-export function Hero({ videoUrl, title, subtitle, cta }: HeroProps) {
+export function Hero({ videoUrl, title, subtitle, cta, categories = [] }: HeroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Se limita a 6 para no saturar el hero en pantallas chicas.
+  const shortcuts = categories.slice(0, 6);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -88,6 +105,31 @@ export function Hero({ videoUrl, title, subtitle, cta }: HeroProps) {
               </Button>
             </Link>
           </div>
+
+          {/* Accesos rápidos por categoría, alimentados desde la base. */}
+          {shortcuts.length > 0 && (
+            <motion.nav
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.7 }}
+              aria-label="Categorías destacadas"
+              className="mt-10 flex flex-wrap items-center justify-center gap-2"
+            >
+              {shortcuts.map((category) => {
+                const Icon = getCategoryIcon(category.slug, category.name);
+                return (
+                  <Link
+                    key={category.id}
+                    href={`/categories/${category.slug}`}
+                    className="group inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-medium text-white backdrop-blur-md transition-colors duration-300 hover:border-white/50 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                  >
+                    <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden="true" />
+                    {category.name}
+                  </Link>
+                );
+              })}
+            </motion.nav>
+          )}
         </motion.div>
 
         {/* Scroll indicator */}

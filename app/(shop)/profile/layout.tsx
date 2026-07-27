@@ -12,7 +12,7 @@ export default async function ProfileLayout({ children }: { children: React.Reac
         <div className="mb-8">
           <h1 className="heading-lg text-gray-900">Mi cuenta</h1>
           <p className="text-gray-500 mt-1">
-            Hola{session.user.name ? `, ${session.user.name.split(" ")[0]}` : ""} 👋
+            Hola{session.user.name ? `, ${session.user.name.split(" ")[0]}` : ""}
           </p>
         </div>
 

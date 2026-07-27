@@ -1,58 +1,227 @@
 "use server";
+import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { sendPasswordResetEmail } from "@/lib/mail";
+import { sendPasswordResetEmail, sendVerificationEmail, isMailConfigured } from "@/lib/mail";
+import {
+  createPasswordResetToken,
+  createVerificationToken,
+  consumeVerificationToken,
+} from "@/lib/tokens";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import { registerSchema, resetPasswordSchema } from "@/validations";
 import type { ActionResult } from "@/types";
 import type { RegisterInput } from "@/validations";
 
-export async function registerUser(data: RegisterInput): Promise<ActionResult> {
+/** Normaliza el email para evitar cuentas duplicadas por diferencias de mayúsculas. */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+async function clientKey(action: string): Promise<string> {
+  const ip = getClientIp(await headers());
+  return `${action}:${ip}`;
+}
+
+export async function registerUser(
+  data: RegisterInput
+): Promise<ActionResult<{ emailSent: boolean }>> {
   try {
-    const exists = await db.user.findUnique({ where: { email: data.email } });
+    // Revalidación en el servidor: el esquema del cliente puede saltearse.
+    const parsed = registerSchema.safeParse(data);
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    }
+
+    const limit = rateLimit(await clientKey("register"), 5, 60 * 60 * 1000);
+    if (!limit.success) {
+      return { success: false, error: "Demasiados intentos. Probá de nuevo en un rato." };
+    }
+
+    const email = normalizeEmail(parsed.data.email);
+
+    const exists = await db.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      select: { id: true },
+    });
     if (exists) return { success: false, error: "Ya existe una cuenta con ese email" };
-    const hashedPassword = await bcrypt.hash(data.password, 12);
+
+    const hashedPassword = await bcrypt.hash(parsed.data.password, 12);
+
     await db.user.create({
       data: {
-        name: data.name,
-        email: data.email,
+        name: parsed.data.name.trim(),
+        email,
         password: hashedPassword,
       },
     });
-    return { success: true };
-  } catch {
+
+    // El token se crea siempre; el envío puede fallar y se reintenta con "reenviar".
+    const { token } = await createVerificationToken(email);
+
+    let emailSent = false;
+    try {
+      await sendVerificationEmail(email, token);
+      emailSent = true;
+    } catch (error) {
+      console.error("[register] No se pudo enviar el email de verificación:", error);
+    }
+
+    return { success: true, data: { emailSent } };
+  } catch (error) {
+    // Colisión con el índice único: dos registros simultáneos con el mismo email.
+    if ((error as { code?: string })?.code === "P2002") {
+      return { success: false, error: "Ya existe una cuenta con ese email" };
+    }
+    console.error("[register] error:", error);
     return { success: false, error: "Error al crear la cuenta" };
   }
 }
 
-export async function requestPasswordReset(email: string): Promise<ActionResult> {
+/** Confirma la dirección de email a partir del token del link enviado por correo. */
+export async function verifyEmail(
+  token: string
+): Promise<ActionResult<{ email: string }>> {
   try {
-    const user = await db.user.findUnique({ where: { email } });
-    // Always return success to avoid user enumeration
-    if (!user) return { success: true };
-    const token = crypto.randomUUID();
-    const expires = new Date(Date.now() + 3600 * 1000); // 1 hour
-    await db.passwordResetToken.deleteMany({ where: { email } });
-    await db.passwordResetToken.create({ data: { email, token, expires } });
-    await sendPasswordResetEmail(email, token);
-    return { success: true };
-  } catch {
-    return { success: false, error: "Error al enviar el email" };
+    if (!token) return { success: false, error: "Falta el token de verificación" };
+
+    const result = await consumeVerificationToken(token);
+
+    if (!result.ok) {
+      return {
+        success: false,
+        error:
+          result.reason === "expired"
+            ? "El link de verificación expiró. Pedí uno nuevo."
+            : "El link de verificación no es válido o ya fue usado.",
+      };
+    }
+
+    const user = await db.user.findFirst({
+      where: { email: { equals: result.email, mode: "insensitive" } },
+      select: { id: true, email: true, emailVerified: true },
+    });
+
+    if (!user) return { success: false, error: "No encontramos la cuenta asociada a este link." };
+
+    // Idempotente: si ya estaba verificada, se informa como éxito.
+    if (!user.emailVerified) {
+      await db.user.update({
+        where: { id: user.id },
+        data: { emailVerified: new Date() },
+      });
+    }
+
+    return { success: true, data: { email: user.email } };
+  } catch (error) {
+    console.error("[verifyEmail] error:", error);
+    return { success: false, error: "Error al verificar el email" };
+  }
+}
+
+/**
+ * Reenvía el link de verificación. Responde siempre igual para no revelar
+ * qué emails están registrados.
+ */
+export async function resendVerificationEmail(rawEmail: string): Promise<ActionResult> {
+  const genericSuccess: ActionResult = { success: true };
+
+  try {
+    const email = normalizeEmail(rawEmail);
+    if (!email) return { success: false, error: "Ingresá tu email" };
+
+    const limit = rateLimit(`resend-verify:${email}`, 3, 15 * 60 * 1000);
+    if (!limit.success) {
+      return {
+        success: false,
+        error: `Ya pediste varios reenvíos. Esperá ${Math.ceil(limit.retryAfterSeconds / 60)} minuto(s).`,
+      };
+    }
+
+    if (!isMailConfigured()) {
+      return { success: false, error: "El envío de emails no está configurado. Contactanos por WhatsApp." };
+    }
+
+    const user = await db.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      select: { email: true, emailVerified: true },
+    });
+
+    if (!user || user.emailVerified) return genericSuccess;
+
+    const { token } = await createVerificationToken(user.email);
+    await sendVerificationEmail(user.email, token);
+
+    return genericSuccess;
+  } catch (error) {
+    console.error("[resendVerificationEmail] error:", error);
+    return { success: false, error: "Error al reenviar el email" };
+  }
+}
+
+export async function requestPasswordReset(rawEmail: string): Promise<ActionResult> {
+  // Respuesta uniforme: no se revela si el email existe.
+  const genericSuccess: ActionResult = { success: true };
+
+  try {
+    const email = normalizeEmail(rawEmail);
+
+    const limit = rateLimit(`reset:${email}`, 3, 15 * 60 * 1000);
+    if (!limit.success) {
+      return {
+        success: false,
+        error: `Demasiadas solicitudes. Esperá ${Math.ceil(limit.retryAfterSeconds / 60)} minuto(s).`,
+      };
+    }
+
+    const user = await db.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+      select: { email: true },
+    });
+    if (!user) return genericSuccess;
+
+    const { token } = await createPasswordResetToken(user.email);
+    await sendPasswordResetEmail(user.email, token);
+
+    return genericSuccess;
+  } catch (error) {
+    console.error("[requestPasswordReset] error:", error);
+    // Se informa el fallo real para que el usuario no espere un mail que no llega.
+    return { success: false, error: "No pudimos enviar el email. Intentá más tarde." };
   }
 }
 
 export async function resetPassword(token: string, password: string): Promise<ActionResult> {
   try {
+    // La política de contraseña se revalida en el servidor.
+    const parsed = resetPasswordSchema.safeParse({ password, confirmPassword: password });
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Contraseña inválida" };
+    }
+
     const record = await db.passwordResetToken.findUnique({ where: { token } });
     if (!record || record.expires < new Date()) {
+      // Se limpia el token vencido si existía.
+      if (record) await db.passwordResetToken.delete({ where: { token } }).catch(() => {});
       return { success: false, error: "Token inválido o expirado" };
     }
+
     const hashedPassword = await bcrypt.hash(password, 12);
-    await db.user.update({
-      where: { email: record.email },
-      data: { password: hashedPassword },
-    });
-    await db.passwordResetToken.delete({ where: { token } });
+
+    await db.$transaction([
+      db.user.update({
+        where: { email: record.email },
+        // Quien controla la casilla puede resetear: eso ya prueba que el email es suyo.
+        data: { password: hashedPassword, emailVerified: new Date() },
+      }),
+      db.passwordResetToken.delete({ where: { token } }),
+      // Se invalidan las sesiones abiertas del usuario tras cambiar la contraseña.
+      db.session.deleteMany({ where: { user: { email: record.email } } }),
+    ]);
+
     return { success: true };
-  } catch {
+  } catch (error) {
+    console.error("[resetPassword] error:", error);
     return { success: false, error: "Error al restablecer la contraseña" };
   }
 }

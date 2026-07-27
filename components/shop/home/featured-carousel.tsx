@@ -11,7 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/hooks/use-cart";
 import { toast } from "@/hooks/use-toast";
-import { cn, formatPrice, calculateDiscount } from "@/lib/utils";
+import { cn, calculateDiscount } from "@/lib/utils";
+import { useCurrency } from "@/hooks/use-currency";
 import type { ProductWithRelations } from "@/types";
 
 interface FeaturedCarouselProps {
@@ -34,6 +35,8 @@ export function FeaturedCarousel({
   viewAllLabel = "Ver todos",
 }: FeaturedCarouselProps) {
   const addItem = useCartStore((s) => s.addItem);
+  // Respeta la moneda que el visitante eligió ver (USD o ARS).
+  const { format: formatMoney } = useCurrency();
   const [index, setIndex] = useState(0);
   // Direction drives whether the slide enters from the left or the right.
   const [direction, setDirection] = useState(1);
@@ -192,11 +195,11 @@ export function FeaturedCarousel({
 
                 <div className="mt-6 flex flex-wrap items-baseline gap-3">
                   <span className="text-3xl font-bold text-gray-900 md:text-4xl">
-                    {formatPrice(product.price)}
+                    {formatMoney(product.price)}
                   </span>
                   {product.comparePrice && product.comparePrice > product.price && (
                     <span className="text-lg text-gray-400 line-through">
-                      {formatPrice(product.comparePrice)}
+                      {formatMoney(product.comparePrice)}
                     </span>
                   )}
                 </div>

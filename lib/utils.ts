@@ -5,12 +5,21 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatPrice(price: number, currency = "ARS"): string {
+/**
+ * Formatea un importe en la moneda base de la tienda.
+ *
+ * El default era "ARS", pero los precios de catálogo están en dólares, así que
+ * todo el sitio mostraba "$ 1.200" para un producto de USD 1.200. Ahora el
+ * default es USD, que es la moneda base real (ver el ajuste `base_currency`).
+ * Para convertir a pesos se usa `convertForDisplay` de lib/pricing.
+ */
+export function formatPrice(price: number, currency = "USD"): string {
+  const isArs = currency === "ARS"
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
     currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: isArs ? 0 : 2,
+    maximumFractionDigits: isArs ? 0 : 2,
   }).format(price)
 }
 

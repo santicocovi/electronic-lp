@@ -6,10 +6,12 @@ import Link from "next/link";
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/hooks/use-cart";
-import { formatPrice } from "@/lib/utils";
+import { useCurrency } from "@/hooks/use-currency";
+import { ShippingNotice } from "@/components/shop/shipping-notice";
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, subtotal } = useCartStore();
+  const { format: formatPrice, currency, arsSurchargePercent } = useCurrency();
 
   if (items.length === 0) {
     return (
@@ -120,9 +122,21 @@ export default function CartPage() {
                 </div>
               </div>
 
-              <div className="flex justify-between font-bold text-lg border-t border-gray-100 pt-4 mb-6">
+              <div className="flex justify-between font-bold text-lg border-t border-gray-100 pt-4 mb-2">
                 <span>Total</span>
                 <span>{formatPrice(subtotal())}</span>
+              </div>
+
+              {/* Transparencia: en pesos el precio mostrado ya trae el recargo. */}
+              {currency === "ARS" && arsSurchargePercent > 0 && (
+                <p className="text-xs text-gray-400 mb-4">
+                  Importe en pesos calculado con la cotización del dólar blue + {arsSurchargePercent}%.
+                  Elegí otro medio de pago en el checkout para ver su total.
+                </p>
+              )}
+
+              <div className="mb-6">
+                <ShippingNotice variant="compact" />
               </div>
 
               <Link href="/checkout">

@@ -6,7 +6,8 @@ import { motion } from "framer-motion";
 import { ShoppingCart, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatPrice, calculateDiscount, getProductWhatsAppUrl } from "@/lib/utils";
+import { cn, calculateDiscount, getProductWhatsAppUrl } from "@/lib/utils";
+import { useCurrency } from "@/hooks/use-currency";
 import { useCartStore } from "@/hooks/use-cart";
 import { toast } from "@/hooks/use-toast";
 import { WishlistButton } from "@/components/shop/product/wishlist-button";
@@ -21,6 +22,8 @@ interface ProductCardProps {
 
 export function ProductCard({ product, className, isSaved = false }: ProductCardProps) {
   const addItem = useCartStore((s) => s.addItem);
+  // Respeta la moneda que el visitante eligió ver (USD o ARS).
+  const { format: formatMoney } = useCurrency();
 
   const mainImage =
     product.images.find((i) => i.isMain)?.url ??
@@ -127,11 +130,11 @@ export function ProductCard({ product, className, isSaved = false }: ProductCard
           </h3>
           <div className="flex items-center gap-2">
             <span className="text-base font-bold text-gray-900">
-              {formatPrice(product.price)}
+              {formatMoney(product.price)}
             </span>
             {product.comparePrice && product.comparePrice > product.price && (
               <span className="text-sm text-gray-400 line-through">
-                {formatPrice(product.comparePrice)}
+                {formatMoney(product.comparePrice)}
               </span>
             )}
           </div>

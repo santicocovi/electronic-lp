@@ -134,8 +134,15 @@ export function CategoryForm({ parents, initialData }: CategoryFormProps) {
             />
           </div>
           <div>
-            <Label>Ícono (emoji)</Label>
-            <Input {...register("icon")} className="mt-1 rounded-xl" placeholder="📱" />
+            {/* El ícono de la tienda ya no sale de este campo: se resuelve con
+                iconografía Lucide según el slug (lib/category-icons). El campo
+                se conserva por compatibilidad con los datos existentes. */}
+            <Label>Ícono interno (opcional)</Label>
+            <Input
+              {...register("icon")}
+              className="mt-1 rounded-xl"
+              placeholder="Sin uso — el ícono se asigna automáticamente"
+            />
           </div>
           <div>
             <Label>Orden</Label>

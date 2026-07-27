@@ -12,31 +12,39 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCartStore } from "@/hooks/use-cart";
+import { CurrencySwitch } from "@/components/shop/currency-switch";
 import { cn } from "@/lib/utils";
 
-const NAV_LINKS = [
-  {
-    label: "Productos",
-    href: "/products",
-    children: [
-      { label: "iPhone", href: "/categories/iphone" },
-      { label: "MacBook", href: "/categories/macbook" },
-      { label: "iPad", href: "/categories/ipad" },
-      { label: "Apple Watch", href: "/categories/apple-watch" },
-      { label: "AirPods", href: "/categories/airpods" },
-      { label: "Auriculares", href: "/categories/auriculares" },
-      { label: "Parlantes", href: "/categories/parlantes" },
-      { label: "Gaming", href: "/categories/gaming" },
-      { label: "Smart Home", href: "/categories/smart-home" },
-      { label: "Accesorios", href: "/categories/accesorios" },
-    ],
-  },
-  { label: "Ofertas", href: "/products?filter=sale" },
-  { label: "Novedades", href: "/products?filter=new" },
-  { label: "Contacto", href: "/contact" },
-];
+/** Categoría para el menú, provista por el layout (Server Component). */
+export interface NavCategory {
+  id: string;
+  name: string;
+  slug: string;
+}
 
-export function Navbar() {
+interface NavbarProps {
+  /**
+   * Categorías del menú. Vienen de la base en lugar de estar escritas a mano,
+   * así una categoría creada en el panel aparece en la navegación sola.
+   */
+  categories?: NavCategory[];
+}
+
+export function Navbar({ categories = [] }: NavbarProps) {
+  const NAV_LINKS = [
+    {
+      label: "Productos",
+      href: "/products",
+      children: categories.map((c) => ({
+        label: c.name,
+        href: `/categories/${c.slug}`,
+      })),
+    },
+    { label: "Ofertas", href: "/products?filter=sale" },
+    { label: "Novedades", href: "/products?filter=new" },
+    { label: "Contacto", href: "/contact" },
+  ];
+
   const { data: session } = useSession();
   const items = useCartStore((s) => s.items);
   const [scrolled, setScrolled] = useState(false);
@@ -128,6 +136,10 @@ export function Navbar() {
 
           {/* Actions */}
           <div className="flex items-center gap-1">
+            {/* Selector de moneda: se oculta en pantallas muy chicas para no
+                comprimir los íconos de búsqueda y carrito. */}
+            <CurrencySwitch className="mr-1 hidden xs:inline-flex sm:inline-flex" />
+
             <Link href="/search">
               <Button variant="ghost" size="icon" className="rounded-xl hover:bg-brand-blue-subtle">
                 <Search className="w-5 h-5 text-gray-600" />

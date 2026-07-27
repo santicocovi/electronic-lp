@@ -7,7 +7,9 @@ import { ProductGallery } from "@/components/shop/product/product-gallery";
 import { ProductInfo } from "@/components/shop/product/product-info";
 import { ProductSpecs } from "@/components/shop/product/product-specs";
 import { ProductsSection } from "@/components/shop/home/products-section";
-import type { ProductWithRelations } from "@/types";
+import { PaymentTerms } from "@/components/shop/payment-terms";
+import { getExchangeRate } from "@/lib/currency";
+import { getPricingConfig } from "@/lib/pricing";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -73,27 +75,45 @@ export default async function ProductPage({ params }: Props) {
       }))
     : false;
 
+  // Cotización y recargos para mostrar el precio de referencia en pesos.
+  const [rate, pricing] = await Promise.all([getExchangeRate(), getPricingConfig()]);
+
+  const serialized = serializeProduct(product);
+
   return (
     <div className="pt-16">
-      <div className="container mx-auto px-4 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
-          <ProductGallery product={serializeProduct(product)} />
-          <ProductInfo product={serializeProduct(product)} isSaved={isSaved} />
+      <div className="container mx-auto max-w-6xl px-4 py-10 sm:py-14">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-16">
+          <ProductGallery product={serialized} />
+          <ProductInfo
+            product={serialized}
+            isSaved={isSaved}
+            exchangeRate={rate.rate}
+            baseCurrency={pricing.baseCurrency}
+            arsSurchargePercent={pricing.surcharges.CASH_ARS}
+          />
+        </div>
+
+        {/* Medios de pago y condiciones comerciales */}
+        <div className="mt-16 sm:mt-20">
+          <PaymentTerms />
         </div>
 
         {product.specs.length > 0 && (
-          <div className="mt-16">
+          <div className="mt-16 border-t border-gray-100 pt-16 sm:mt-20 sm:pt-20">
             <ProductSpecs specs={product.specs} />
           </div>
         )}
       </div>
 
       {related.length > 0 && (
-        <ProductsSection
-          tag="También te puede interesar"
-          title="Productos relacionados"
-          products={serializeProducts(related)}
-        />
+        <div className="border-t border-gray-100">
+          <ProductsSection
+            tag="También te puede interesar"
+            title="Productos relacionados"
+            products={serializeProducts(related)}
+          />
+        </div>
       )}
     </div>
   );

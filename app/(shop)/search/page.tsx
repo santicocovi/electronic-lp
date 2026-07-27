@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Search } from "lucide-react";
 import { db } from "@/lib/db";
 import { CatalogView } from "@/components/shop/catalog/catalog-view";
 import { SearchBar } from "@/components/shop/catalog/search-bar";
@@ -84,7 +85,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         />
       ) : (
         <div className="container mx-auto px-4 py-24 text-center">
-          <p className="text-5xl mb-4">🔍</p>
+          <Search className="w-10 h-10 mx-auto mb-4 text-gray-300" aria-hidden="true" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Empezá tu búsqueda</h2>
           <p className="text-gray-500">Buscá por nombre, descripción o código de producto.</p>
         </div>

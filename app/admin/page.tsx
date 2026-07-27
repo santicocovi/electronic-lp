@@ -130,7 +130,9 @@ export default async function AdminDashboard() {
           </div>
           <div className="divide-y divide-gray-50">
             {lowStock.length === 0 ? (
-              <p className="px-6 py-8 text-sm text-gray-400 text-center">Todo el stock está bien ✓</p>
+              <p className="px-6 py-8 text-sm text-gray-400 text-center">
+                Todo el stock está en niveles normales
+              </p>
             ) : (
               lowStock.map((p) => (
                 <div key={p.id} className="flex items-center justify-between px-6 py-4">

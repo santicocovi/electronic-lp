@@ -2,20 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, MailCheck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerSchema, type RegisterInput } from "@/validations";
 import { registerUser } from "@/actions/auth";
+import { ResendVerification } from "@/components/shop/auth/resend-verification";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  // Al registrarse no se redirige al login: primero hay que confirmar el email.
+  const [registered, setRegistered] = useState<{ email: string; emailSent: boolean } | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
@@ -25,10 +26,46 @@ export default function RegisterPage() {
     setError("");
     const result = await registerUser(data);
     if (result.success) {
-      router.push("/login?registered=true");
+      setRegistered({ email: data.email, emailSent: result.data?.emailSent ?? false });
     } else {
       setError(result.error ?? "Error al registrarse");
     }
+  }
+
+  if (registered) {
+    return (
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center">
+        <MailCheck className="w-12 h-12 text-emerald-500 mx-auto mb-4" aria-hidden="true" />
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Revisá tu email</h1>
+
+        {registered.emailSent ? (
+          <p className="text-gray-500 text-sm mb-6">
+            Enviamos un link de confirmación a{" "}
+            <strong className="text-gray-900">{registered.email}</strong>. Hacé clic en el link para
+            activar tu cuenta. Si no lo ves, revisá la carpeta de spam.
+          </p>
+        ) : (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-left">
+            <p className="text-amber-800 text-sm flex gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>
+                Tu cuenta se creó, pero no pudimos enviar el email de confirmación en este momento.
+                Probá reenviarlo en unos minutos.
+              </span>
+            </p>
+          </div>
+        )}
+
+        <ResendVerification defaultEmail={registered.email} hideInput />
+
+        <Link
+          href="/login"
+          className="mt-6 inline-block text-sm text-brand-blue-mid font-medium hover:underline"
+        >
+          Ir a iniciar sesión
+        </Link>
+      </div>
+    );
   }
 
   return (

@@ -5,6 +5,7 @@ import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { authConfig } from "@/auth.config";
+import { loginSchema } from "@/validations";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -22,19 +23,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        const parsed = loginSchema.safeParse(credentials);
+        if (!parsed.success) return null;
 
-        const user = await db.user.findUnique({
-          where: { email: credentials.email as string },
+        // Búsqueda case-insensitive: las cuentas viejas pueden tener mayúsculas.
+        const user = await db.user.findFirst({
+          where: { email: { equals: parsed.data.email.trim(), mode: "insensitive" } },
         });
 
+        // Cuenta creada solo con Google (sin contraseña local).
         if (!user || !user.password) return null;
 
-        const passwordMatch = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        );
-
+        const passwordMatch = await bcrypt.compare(parsed.data.password, user.password);
         if (!passwordMatch) return null;
 
         return {
@@ -43,8 +43,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           image: user.image,
           role: user.role,
+          emailVerified: user.emailVerified,
         };
       },
     }),
   ],
+  events: {
+    /**
+     * Google ya validó la dirección, así que la cuenta queda verificada al
+     * vincularse. Evita pedirle al usuario que confirme un email que el
+     * proveedor de identidad ya confirmó.
+     */
+    async linkAccount({ user }) {
+      if (user.id) {
+        await db.user
+          .update({ where: { id: user.id }, data: { emailVerified: new Date() } })
+          .catch(() => {});
+      }
+    },
+  },
 });

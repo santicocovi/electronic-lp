@@ -31,7 +31,18 @@ interface ProductFormProps {
 }
 
 type ImageItem = { url: string; alt: string; isMain: boolean };
-type VariantItem = { name: string; value: string; type: string; price: string; stock: string; sku: string };
+/** `id` viaja de ida y vuelta para que al editar se actualice la variante
+ *  existente en lugar de borrarla y recrearla (lo que rompía los pedidos
+ *  históricos que la referencian). */
+type VariantItem = {
+  id?: string;
+  name: string;
+  value: string;
+  type: string;
+  price: string;
+  stock: string;
+  sku: string;
+};
 type SpecItem = { group: string; label: string; value: string };
 
 const VARIANT_TYPES = ["color", "storage", "memory", "size"];
@@ -57,6 +68,7 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
   );
   const [variants, setVariants] = useState<VariantItem[]>(
     initialData?.variants.map((v) => ({
+      id: v.id,
       name: v.name, value: v.value, type: v.type,
       price: v.price?.toString() ?? "", stock: v.stock.toString(), sku: v.sku ?? "",
     })) ?? []
@@ -168,11 +180,13 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
     }));
     const variantsPayload = variants
       .filter((v) => v.name.trim() && v.value.trim())
-      .map((v) => ({
+      .map((v, i) => ({
+        id: v.id,
         name: v.name, value: v.value, type: v.type,
         price: v.price ? Number(v.price) : undefined,
         stock: Number(v.stock) || 0,
         sku: v.sku || undefined,
+        order: i,
       }));
     const specsPayload = specs
       .filter((s) => s.label.trim() && s.value.trim())
@@ -428,8 +442,10 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
                   <Input value={v.value} onChange={(e) => updateVariant(idx, "value", e.target.value)} className="mt-1 rounded-lg h-9" placeholder="Azul" />
                 </div>
                 <div>
-                  <Label className="text-xs">Precio extra</Label>
-                  <Input type="number" value={v.price} onChange={(e) => updateVariant(idx, "price", e.target.value)} className="mt-1 rounded-lg h-9" placeholder="Opcional" />
+                  {/* Precio final de la variante, no un adicional: si se deja
+                      vacío, la variante hereda el precio del producto. */}
+                  <Label className="text-xs">Precio propio</Label>
+                  <Input type="number" step="0.01" min="0" value={v.price} onChange={(e) => updateVariant(idx, "price", e.target.value)} className="mt-1 rounded-lg h-9" placeholder="Hereda" />
                 </div>
                 <div>
                   <Label className="text-xs">Stock</Label>

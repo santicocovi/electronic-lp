@@ -11,7 +11,8 @@ import { BenefitsSection } from "@/components/shop/home/benefits-section";
 import { TestimonialsSection } from "@/components/shop/home/testimonials-section";
 import { FAQSection } from "@/components/shop/home/faq-section";
 import { NewsletterSection } from "@/components/shop/home/newsletter-section";
-import type { CategoryWithChildren, ProductWithRelations } from "@/types";
+import { ShippingNotice } from "@/components/shop/shipping-notice";
+import type { CategoryWithChildren } from "@/types";
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getSiteSettings();
@@ -50,7 +51,8 @@ export default async function HomePage() {
           children: true,
           _count: { select: { products: { where: { isActive: true } } } },
         },
-        take: 10,
+        // Margen para que una categoría nueva entre sin tocar este número.
+        take: 16,
       }),
       db.product.findMany({
         where: { isActive: true, isFeatured: true },
@@ -94,7 +96,10 @@ export default async function HomePage() {
         title={settings.heroTitle}
         subtitle={settings.heroSubtitle}
         cta={settings.heroCta}
+        categories={categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))}
       />
+
+      <ShippingNotice variant="banner" />
 
       <CategoriesSection categories={categories as unknown as CategoryWithChildren[]} />
 

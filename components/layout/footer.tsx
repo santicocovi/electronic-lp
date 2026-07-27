@@ -1,15 +1,6 @@
 import Link from "next/link";
-import { Instagram, Mail, MessageCircle, MapPin } from "lucide-react";
-
-const CATEGORIES = [
-  { label: "iPhone", href: "/categories/iphone" },
-  { label: "MacBook", href: "/categories/macbook" },
-  { label: "iPad", href: "/categories/ipad" },
-  { label: "Apple Watch", href: "/categories/apple-watch" },
-  { label: "AirPods", href: "/categories/airpods" },
-  { label: "Gaming", href: "/categories/gaming" },
-  { label: "Accesorios", href: "/categories/accesorios" },
-];
+import { Instagram, Mail, MessageCircle, MapPin, Truck } from "lucide-react";
+import { db } from "@/lib/db";
 
 const INFO = [
   { label: "Inicio", href: "/" },
@@ -20,7 +11,18 @@ const INFO = [
   { label: "Política de privacidad", href: "/privacy" },
 ];
 
-export function Footer() {
+export async function Footer() {
+  // Las categorías salen de la base: antes estaban escritas a mano y una
+  // categoría nueva del panel nunca aparecía acá.
+  const categories = await db.category
+    .findMany({
+      where: { isActive: true, showInNav: true, parentId: null },
+      orderBy: { order: "asc" },
+      select: { id: true, name: true, slug: true },
+      take: 8,
+    })
+    .catch(() => []);
+
   return (
     <footer className="bg-gray-950 text-gray-400">
       <div className="container mx-auto px-4 py-16">
@@ -66,16 +68,24 @@ export function Footer() {
           <div>
             <p className="text-white font-semibold mb-4">Categorías</p>
             <ul className="space-y-2">
-              {CATEGORIES.map((c) => (
-                <li key={c.href}>
+              {categories.map((c) => (
+                <li key={c.id}>
                   <Link
-                    href={c.href}
+                    href={`/categories/${c.slug}`}
                     className="text-sm hover:text-brand-blue-light transition-colors"
                   >
-                    {c.label}
+                    {c.name}
                   </Link>
                 </li>
               ))}
+              <li>
+                <Link
+                  href="/products"
+                  className="text-sm text-gray-500 hover:text-brand-blue-light transition-colors"
+                >
+                  Ver todo
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -139,10 +149,28 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-600">
+        {/* Envíos */}
+        <div className="mt-12 pt-8 border-t border-white/10">
+          <p className="flex items-center justify-center gap-2 text-sm text-gray-300">
+            <Truck className="w-4 h-4 text-brand-blue-light shrink-0" aria-hidden="true" />
+            Envíos dentro de La Plata durante el día y sin cargo.
+          </p>
+        </div>
+
+        <div className="mt-8 pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-5 text-xs text-gray-600">
           <p>© {new Date().getFullYear()} Electronic LP. Todos los derechos reservados.</p>
-          <div className="flex items-center gap-4">
+
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+            {/* eslint-disable-next-line @next/next/no-img-element -- SVG local estático, no necesita optimización */}
             <img src="/images/mp-badge.svg" alt="Mercado Pago" className="h-5 opacity-50" />
+
+            {/* Firma del desarrollo */}
+            <p className="text-gray-600">
+              Developed by{" "}
+              <span className="text-gray-500 transition-colors hover:text-gray-400">
+                Santiago Cocovi
+              </span>
+            </p>
           </div>
         </div>
       </div>
