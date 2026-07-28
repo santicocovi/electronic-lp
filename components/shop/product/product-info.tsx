@@ -78,10 +78,23 @@ export function ProductInfo({
       maximumFractionDigits: baseCurrency === "ARS" ? 0 : 2,
     }).format(value);
 
-  // Referencia en pesos: solo tiene sentido si la moneda base es el dólar.
+  /**
+   * Precio de referencia en pesos.
+   *
+   * Manda el valor que el administrador fijó a mano (`priceArs`); si no lo hay,
+   * se convierte con la cotización. No se le suma ningún recargo: el recargo
+   * depende del medio de pago y se muestra por separado en el checkout, así el
+   * precio de lista y el del checkout dejan de contradecirse.
+   *
+   * Con una variante seleccionada que tiene precio propio, el valor fijo del
+   * producto ya no aplica y se vuelve a la conversión.
+   */
+  const usesProductPrice = selectedVariant?.price == null;
   const arsReference =
     baseCurrency === "USD"
-      ? Math.round(price * (1 + arsSurchargePercent / 100) * exchangeRate)
+      ? usesProductPrice && product.priceArs != null && product.priceArs > 0
+        ? Math.round(product.priceArs)
+        : Math.round(price * exchangeRate)
       : null;
 
   // La descripción se sanea antes de inyectarla como HTML.
@@ -105,6 +118,8 @@ export function ProductInfo({
       variantId: selectedVariant?.id,
       name: product.name,
       price,
+      // Con variante de precio propio ya no aplica el precio fijo en pesos.
+      priceArs: usesProductPrice ? product.priceArs : null,
       image: selectedVariant?.image ?? mainImage,
       quantity,
       stock,
@@ -201,7 +216,12 @@ export function ProductInfo({
                 maximumFractionDigits: 0,
               }).format(arsReference)}
             </span>
-            {arsSurchargePercent > 0 && ` · dólar blue + ${arsSurchargePercent}%`}
+            {arsSurchargePercent > 0 && (
+              <>
+                {" · pagando en efectivo en pesos se suma un "}
+                {arsSurchargePercent}% de recargo
+              </>
+            )}
           </p>
         )}
 

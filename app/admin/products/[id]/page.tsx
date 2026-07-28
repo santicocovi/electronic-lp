@@ -3,13 +3,15 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { ProductForm } from "@/components/admin/product-form";
+import { getPricingConfig } from "@/lib/pricing";
+import { getExchangeRate } from "@/lib/currency";
 
 export const metadata = { title: "Editar producto | Admin" };
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [product, categories, brands] = await Promise.all([
+  const [product, categories, brands, pricing, rate] = await Promise.all([
     db.product.findUnique({
       where: { id },
       include: {
@@ -20,6 +22,8 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     }),
     db.category.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     db.brand.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getPricingConfig(),
+    getExchangeRate(),
   ]);
 
   if (!product) notFound();
@@ -34,6 +38,8 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     price: Number(product.price),
     comparePrice: product.comparePrice ? Number(product.comparePrice) : undefined,
     costPrice: product.costPrice ? Number(product.costPrice) : undefined,
+    priceArs: product.priceArs ? Number(product.priceArs) : undefined,
+    comparePriceArs: product.comparePriceArs ? Number(product.comparePriceArs) : undefined,
     stock: product.stock,
     lowStockAlert: product.lowStockAlert,
     warranty: product.warranty ?? "",
@@ -69,7 +75,13 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         <p className="text-sm text-gray-500 mt-1">{product.name}</p>
       </div>
 
-      <ProductForm categories={categories} brands={brands} initialData={initialData} />
+      <ProductForm
+        categories={categories}
+        brands={brands}
+        baseCurrency={pricing.baseCurrency}
+        exchangeRate={rate.rate}
+        initialData={initialData}
+      />
     </div>
   );
 }

@@ -4,7 +4,10 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Save, Upload, Star, X, Plus, Trash2, GripVertical } from "lucide-react";
+import {
+  Loader2, Save, Upload, Star, X, Plus, Trash2, GripVertical,
+  Calculator, AlertTriangle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +25,10 @@ import type { ProductImageType, ProductVariantType, ProductSpecType } from "@/ty
 interface ProductFormProps {
   categories: { id: string; name: string }[];
   brands: { id: string; name: string }[];
+  /** Moneda en la que están cargados los precios del catálogo. */
+  baseCurrency: "USD" | "ARS";
+  /** Pesos por dólar, para sugerir el precio en pesos. */
+  exchangeRate: number;
   initialData?: {
     id: string;
     images: ProductImageType[];
@@ -47,7 +54,13 @@ type SpecItem = { group: string; label: string; value: string };
 
 const VARIANT_TYPES = ["color", "storage", "memory", "size"];
 
-export function ProductForm({ categories, brands, initialData }: ProductFormProps) {
+export function ProductForm({
+  categories,
+  brands,
+  baseCurrency,
+  exchangeRate,
+  initialData,
+}: ProductFormProps) {
   const router = useRouter();
   const isEdit = !!initialData;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +103,8 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
       price: initialData?.price ?? undefined,
       comparePrice: initialData?.comparePrice ?? undefined,
       costPrice: initialData?.costPrice ?? undefined,
+      priceArs: initialData?.priceArs ?? undefined,
+      comparePriceArs: initialData?.comparePriceArs ?? undefined,
       stock: initialData?.stock ?? 0,
       lowStockAlert: initialData?.lowStockAlert ?? 5,
       warranty: initialData?.warranty ?? "",
@@ -106,6 +121,41 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
   });
 
   const nameValue = watch("name");
+  const priceValue = Number(watch("price")) || 0;
+  const comparePriceValue = Number(watch("comparePrice")) || 0;
+  const priceArsValue = Number(watch("priceArs")) || 0;
+
+  const baseCurrencyLabel =
+    baseCurrency === "ARS" ? "pesos argentinos (ARS)" : "dólares (USD)";
+
+  /** Conversión sugerida, redondeada a la unidad: nadie cobra centavos de peso. */
+  const convertToArs = (value: number) =>
+    value > 0 && exchangeRate > 0 ? String(Math.round(value * exchangeRate)) : "";
+
+  const suggestedPriceArs = convertToArs(priceValue);
+  const suggestedComparePriceArs = convertToArs(comparePriceValue);
+
+  /**
+   * Avisa si el precio en pesos cargado a mano se despegó demasiado de la
+   * conversión. No bloquea —puede ser intencional— pero evita el error de tipeo
+   * que deja un producto a la décima parte de su valor.
+   */
+  const priceMismatchWarning = (() => {
+    if (!priceArsValue || !suggestedPriceArs) return null;
+    const suggested = Number(suggestedPriceArs);
+    const deviation = Math.abs(priceArsValue - suggested) / suggested;
+    if (deviation < 0.25) return null;
+
+    return `El precio en pesos cargado ($${priceArsValue.toLocaleString("es-AR")}) se aparta un ${Math.round(
+      deviation * 100
+    )}% de la conversión automática ($${suggested.toLocaleString("es-AR")}). Revisá que sea correcto.`;
+  })();
+
+  /** Completa los precios en pesos con la cotización vigente. */
+  function fillArsFromRate() {
+    if (suggestedPriceArs) setValue("priceArs", Number(suggestedPriceArs));
+    if (suggestedComparePriceArs) setValue("comparePriceArs", Number(suggestedComparePriceArs));
+  }
 
   function handleGenerateSlug() {
     if (nameValue) setValue("slug", slugify(nameValue));
@@ -286,24 +336,94 @@ export function ProductForm({ categories, brands, initialData }: ProductFormProp
       </div>
 
       {/* Pricing & inventory */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-        <h2 className="font-semibold text-gray-900">Precio e inventario</h2>
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+        <div>
+          <h2 className="font-semibold text-gray-900">Precio e inventario</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Los precios de esta primera fila están en <strong>{baseCurrencyLabel}</strong>, la moneda
+            base de la tienda.
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <Label>Precio</Label>
-            <Input {...register("price")} type="number" step="0.01" className="mt-1 rounded-xl" />
+            <Label>Precio ({baseCurrency})</Label>
+            <Input {...register("price")} type="number" step="0.01" min="0" className="mt-1 rounded-xl" />
             {errors.price && <p className="text-xs text-red-500 mt-1">{errors.price.message}</p>}
           </div>
           <div>
-            <Label>Precio de lista (tachado)</Label>
-            <Input {...register("comparePrice")} type="number" step="0.01" className="mt-1 rounded-xl" placeholder="Opcional" />
+            <Label>Precio de lista tachado ({baseCurrency})</Label>
+            <Input {...register("comparePrice")} type="number" step="0.01" min="0" className="mt-1 rounded-xl" placeholder="Opcional" />
           </div>
           <div>
-            <Label>Precio de costo</Label>
-            <Input {...register("costPrice")} type="number" step="0.01" className="mt-1 rounded-xl" placeholder="Opcional" />
+            <Label>Precio de costo ({baseCurrency})</Label>
+            <Input {...register("costPrice")} type="number" step="0.01" min="0" className="mt-1 rounded-xl" placeholder="Opcional" />
           </div>
         </div>
+
+        {/* Precios en pesos administrados a mano */}
+        {baseCurrency !== "ARS" && (
+          <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-4 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900">Precio en pesos</p>
+                <p className="text-xs text-gray-500 mt-1 max-w-xl">
+                  Si lo dejás vacío, el precio en pesos se calcula solo con la cotización del día
+                  (1 USD = ${exchangeRate.toLocaleString("es-AR")}). Cargalo únicamente cuando quieras
+                  fijar un valor comercial y que no se mueva con el dólar.
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-2 flex-shrink-0"
+                onClick={fillArsFromRate}
+              >
+                <Calculator className="w-3.5 h-3.5" aria-hidden="true" />
+                Calcular con la cotización
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label>Precio en pesos (ARS)</Label>
+                <Input
+                  {...register("priceArs")}
+                  type="number"
+                  step="1"
+                  min="0"
+                  className="mt-1 rounded-xl"
+                  placeholder={priceValue ? suggestedPriceArs : "Automático"}
+                />
+                {suggestedPriceArs && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Conversión automática: ${suggestedPriceArs}
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label>Precio de lista tachado en pesos (ARS)</Label>
+                <Input
+                  {...register("comparePriceArs")}
+                  type="number"
+                  step="1"
+                  min="0"
+                  className="mt-1 rounded-xl"
+                  placeholder={comparePriceValue ? suggestedComparePriceArs : "Automático"}
+                />
+              </div>
+            </div>
+
+            {priceMismatchWarning && (
+              <p className="flex gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                {priceMismatchWarning}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>

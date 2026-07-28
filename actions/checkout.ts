@@ -5,13 +5,13 @@ import { getCurrentUser } from "@/lib/auth-guard";
 import { validateCoupon } from "@/lib/coupons";
 import {
   computeTotals,
+  computeItemsSubtotalArs,
   getPricingConfig,
   isPaymentOptionKey,
   PAYMENT_OPTIONS,
   PAYMENT_OPTION_KEYS,
   formatMoney,
   round2,
-  roundArs,
   type PaymentOptionKey,
   type PricedLine,
 } from "@/lib/pricing";
@@ -35,9 +35,14 @@ export interface QuoteLine {
   productId: string;
   variantId: string | null;
   name: string;
+  /** Precio unitario en moneda base. */
   unitPrice: number;
+  /** El mismo precio unitario expresado en pesos. */
+  unitPriceArs: number;
   quantity: number;
   subtotal: number;
+  /** Subtotal de la línea en pesos. */
+  subtotalArs: number;
   availableStock: number;
 }
 
@@ -62,7 +67,15 @@ export interface QuoteOption {
   /** Moneda en la que se cobra la mercadería. */
   currency: "USD" | "ARS";
   surchargePercent: number;
+  /**
+   * Recargo del medio de pago, expresado en la moneda en la que se cobra.
+   * Antes se mostraba siempre en moneda base aunque el cobro fuera en pesos.
+   */
   surchargeAmount: number;
+  /** Subtotal de la mercadería en la moneda de cobro, antes de descuentos. */
+  itemsSubtotal: number;
+  /** Descuento del cupón en la moneda de cobro. */
+  discount: number;
   /** Total de la mercadería en la moneda de cobro. */
   goodsTotal: number;
   goodsTotalFormatted: string;
@@ -139,6 +152,7 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
         id: true,
         name: true,
         price: true,
+        priceArs: true,
         stock: true,
         isActive: true,
         freeShipping: true,
@@ -161,6 +175,9 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
       }
 
       let unitPrice = Number(product.price);
+      // Precio fijo en pesos del producto. Una variante con precio propio lo
+      // reemplaza, así que en ese caso se vuelve a la conversión automática.
+      let unitPriceArs = product.priceArs != null ? Number(product.priceArs) : null;
       let name = product.name;
       let availableStock = product.stock;
 
@@ -170,7 +187,10 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
           warnings.push(`La variante elegida de "${product.name}" ya no está disponible.`);
           continue;
         }
-        if (variant.price !== null) unitPrice = Number(variant.price);
+        if (variant.price !== null) {
+          unitPrice = Number(variant.price);
+          unitPriceArs = null;
+        }
         name = `${product.name} – ${variant.name}: ${variant.value}`;
         availableStock = variant.stock;
       }
@@ -192,8 +212,11 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
         variantId: item.variantId ?? null,
         name,
         unitPrice: round2(unitPrice),
+        // Se completa más abajo, cuando ya se conocen moneda base y cotización.
+        unitPriceArs: 0,
         quantity,
         subtotal,
+        subtotalArs: 0,
         availableStock,
       });
 
@@ -203,6 +226,7 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
         name,
         image: null,
         unitPrice: round2(unitPrice),
+        unitPriceArs,
         quantity,
         subtotal,
       });
@@ -218,9 +242,25 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
 
     // ── Envío: cotizado en pesos según el código postal ──────
     // El valor declarado va en pesos porque es lo que aseguran los
-    // transportistas argentinos.
-    const declaredValueArs =
-      config.baseCurrency === "ARS" ? roundArs(itemsSubtotal) : roundArs(itemsSubtotal * rate.rate);
+    // transportistas argentinos. Se arma línea por línea para respetar los
+    // precios en pesos fijados a mano.
+    const declaredValueArs = computeItemsSubtotalArs(pricedLines, config.baseCurrency, rate.rate);
+
+    // Ahora que se conocen moneda base y cotización se completa el equivalente
+    // en pesos de cada línea, respetando los precios fijos del administrador.
+    // `lines` y `pricedLines` se llenan en el mismo recorrido, así que van
+    // índice a índice.
+    lines.forEach((line, i) => {
+      const priced = pricedLines[i];
+      if (!priced) return;
+
+      line.unitPriceArs = computeItemsSubtotalArs(
+        [{ ...priced, quantity: 1 }],
+        config.baseCurrency,
+        rate.rate
+      );
+      line.subtotalArs = computeItemsSubtotalArs([priced], config.baseCurrency, rate.rate);
+    });
 
     const shippingQuote = await quoteShipping({
       postalCode: input.postalCode ?? "",
@@ -303,6 +343,10 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
             ? goodsFormatted
             : `${goodsFormatted} + ${shippingFormatted} de envío`;
 
+      // Todo el desglose se expresa en la moneda en la que se cobra, para que
+      // el resumen no mezcle dólares con pesos en la misma columna.
+      const chargedInArs = totals.chargeCurrency === "ARS";
+
       options.push({
         key,
         label: option.label,
@@ -310,7 +354,9 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
         description: option.description,
         currency: option.currency,
         surchargePercent: totals.surchargePercent,
-        surchargeAmount: totals.surchargeAmount,
+        surchargeAmount: chargedInArs ? totals.surchargeAmountArs : totals.surchargeAmount,
+        itemsSubtotal: chargedInArs ? totals.itemsSubtotalArs : totals.itemsSubtotal,
+        discount: chargedInArs ? totals.discountArs : totals.discount,
         goodsTotal: totals.totalCharged,
         goodsTotalFormatted: goodsFormatted,
         shippingArs: totals.shippingCostArs,

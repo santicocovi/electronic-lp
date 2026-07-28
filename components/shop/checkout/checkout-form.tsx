@@ -32,9 +32,11 @@ import { ShippingNotice } from "@/components/shop/shipping-notice";
 /**
  * Formulario de checkout.
  *
- * Separación de monedas: la mercadería se muestra en la moneda base (USD) y el
- * envío SIEMPRE en pesos, como importe independiente. El envío se cotiza en el
- * servidor contra el código postal que escribe el cliente.
+ * Separación de monedas: el resumen se muestra en la moneda del medio de pago
+ * elegido (si pagás en pesos, todo el detalle está en pesos), y el envío SIEMPRE
+ * en pesos como importe independiente, porque lo cobra un transportista
+ * argentino. El envío se cotiza en el servidor contra el código postal que
+ * escribe el cliente; ningún importe se calcula en el navegador.
  */
 
 interface CheckoutFormProps {
@@ -52,13 +54,23 @@ const PAYMENT_ICONS: Record<string, typeof Banknote> = {
   USDT: Wallet,
 };
 
-/** Formatea pesos. El envío nunca cambia de moneda. */
-const formatArs = (value: number) =>
+/**
+ * Formateador único de importes del checkout.
+ *
+ * Se define acá y no se importa de lib/pricing porque ese módulo trae el
+ * cliente de Prisma: importarlo desde un componente de cliente arrastraría toda
+ * la capa de base de datos al bundle del navegador.
+ */
+const money = (value: number, currency: "USD" | "ARS") =>
   new Intl.NumberFormat("es-AR", {
     style: "currency",
-    currency: "ARS",
-    maximumFractionDigits: 0,
+    currency,
+    minimumFractionDigits: currency === "ARS" ? 0 : 2,
+    maximumFractionDigits: currency === "ARS" ? 0 : 2,
   }).format(value);
+
+/** El envío nunca cambia de moneda: siempre pesos. */
+const formatArs = (value: number) => money(value, "ARS");
 
 export function CheckoutForm({ userEmail, userName, defaultAddress }: CheckoutFormProps) {
   const { items, clearCart } = useCartStore();
@@ -234,14 +246,21 @@ export function CheckoutForm({ userEmail, userName, defaultAddress }: CheckoutFo
     }
   }
 
-  /** Formatea importes de mercadería en la moneda base. */
-  const fmtBase = (value: number) =>
-    new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: quote?.baseCurrency ?? "USD",
-      minimumFractionDigits: quote?.baseCurrency === "ARS" ? 0 : 2,
-      maximumFractionDigits: quote?.baseCurrency === "ARS" ? 0 : 2,
-    }).format(value);
+  /**
+   * Moneda del desglose: la del medio de pago elegido.
+   *
+   * Antes el resumen mostraba siempre la moneda base (dólares) aunque el cobro
+   * fuera en pesos, así que el detalle y el total estaban en monedas distintas
+   * y no cerraban a la vista. Ahora todo el resumen se lee en una sola moneda,
+   * salvo el envío, que por definición va siempre en pesos.
+   */
+  const summaryCurrency = selectedOption?.currency ?? quote?.baseCurrency ?? "USD";
+
+  const fmtSummary = (value: number) => money(value, summaryCurrency);
+
+  /** Subtotal de una línea en la moneda del resumen. */
+  const lineSubtotal = (line: { subtotal: number; subtotalArs: number }) =>
+    summaryCurrency === "ARS" ? line.subtotalArs : line.subtotal;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
@@ -507,7 +526,7 @@ export function CheckoutForm({ userEmail, userName, defaultAddress }: CheckoutFo
                     {line.name}
                     {line.quantity > 1 ? ` ×${line.quantity}` : ""}
                   </span>
-                  <span className="font-medium whitespace-nowrap">{fmtBase(line.subtotal)}</span>
+                  <span className="font-medium whitespace-nowrap">{fmtSummary(lineSubtotal(line))}</span>
                 </div>
               ))}
             </div>
@@ -545,20 +564,26 @@ export function CheckoutForm({ userEmail, userName, defaultAddress }: CheckoutFo
             <div className="space-y-2 pt-2 border-t border-gray-100">
               <div className="flex justify-between text-sm text-gray-600">
                 <span>Productos</span>
-                <span>{quote ? fmtBase(quote.itemsSubtotal) : "—"}</span>
+                <span>
+                  {selectedOption
+                    ? fmtSummary(selectedOption.itemsSubtotal)
+                    : quote
+                      ? fmtSummary(quote.itemsSubtotal)
+                      : "—"}
+                </span>
               </div>
 
-              {quote && quote.discount > 0 && (
+              {selectedOption && selectedOption.discount > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Descuento</span>
-                  <span>-{fmtBase(quote.discount)}</span>
+                  <span>-{fmtSummary(selectedOption.discount)}</span>
                 </div>
               )}
 
               {selectedOption && selectedOption.surchargeAmount > 0 && (
                 <div className="flex justify-between text-sm text-amber-700">
                   <span>Recargo ({selectedOption.surchargePercent}%)</span>
-                  <span>+{fmtBase(selectedOption.surchargeAmount)}</span>
+                  <span>+{fmtSummary(selectedOption.surchargeAmount)}</span>
                 </div>
               )}
 

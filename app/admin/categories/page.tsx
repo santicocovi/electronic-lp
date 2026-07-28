@@ -4,6 +4,7 @@ import { Plus, Pencil, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AdminDeleteButton } from "@/components/admin/admin-delete-button";
+import { getCategoryIcon } from "@/lib/category-icons";
 import { deleteCategory } from "@/actions/admin/categories";
 
 export const metadata = { title: "Categorías | Admin" };
@@ -12,7 +13,7 @@ export default async function AdminCategoriesPage() {
   const categories = await db.category.findMany({
     orderBy: [{ order: "asc" }, { name: "asc" }],
     select: {
-      id: true, name: true, slug: true, icon: true, image: true,
+      id: true, name: true, slug: true, image: true,
       order: true, isActive: true, showInNav: true,
       parent: { select: { name: true } },
       _count: { select: { products: true, children: true } },
@@ -34,7 +35,9 @@ export default async function AdminCategoriesPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full">
+        {/* La tabla scrollea dentro de su caja: en mobile no empuja el layout. */}
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[36rem]">
           <thead>
             <tr className="border-b border-gray-50 bg-gray-50/50">
               <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</th>
@@ -46,15 +49,20 @@ export default async function AdminCategoriesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {categories.map((c) => (
+            {categories.map((c) => {
+              // Mismo criterio que la tienda: el ícono se deriva del slug con
+              // iconografía Lucide, nunca de un emoji guardado en la base.
+              const CategoryIcon = getCategoryIcon(c.slug, c.name);
+
+              return (
               <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center text-lg">
+                    <div className="w-10 h-10 rounded-xl bg-gray-100 overflow-hidden flex-shrink-0 flex items-center justify-center">
                       {c.image ? (
                         <img src={c.image} alt={c.name} className="w-full h-full object-contain p-1" />
                       ) : (
-                        c.icon || <Tag className="w-4 h-4 text-gray-300" />
+                        <CategoryIcon className="w-4 h-4 text-gray-400" aria-hidden="true" />
                       )}
                     </div>
                     <div>
@@ -93,9 +101,11 @@ export default async function AdminCategoriesPage() {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
+        </div>
 
         {categories.length === 0 && (
           <div className="text-center py-16 text-gray-400">

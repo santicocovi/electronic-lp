@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Package, ChevronRight } from "lucide-react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { formatPrice } from "@/lib/utils";
+import { formatMoney } from "@/lib/pricing";
 import { formatStoreDate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/order-status";
@@ -20,6 +20,9 @@ export default async function ProfileOrdersPage() {
     orderBy: { createdAt: "desc" },
     select: {
       id: true, orderNumber: true, status: true, total: true, createdAt: true,
+      // La moneda del pedido decide cómo se formatea el importe: sin esto, un
+      // pedido cerrado en pesos se mostraba con el símbolo del dólar.
+      currency: true, totalArs: true, shippingCost: true,
       items: { select: { id: true, name: true, image: true, quantity: true }, take: 4 },
       _count: { select: { items: true } },
     },
@@ -59,7 +62,14 @@ export default async function ProfileOrdersPage() {
               <span className={`text-xs px-2 py-1 rounded-full font-medium ${ORDER_STATUS_COLORS[order.status] ?? "bg-gray-100 text-gray-600"}`}>
                 {ORDER_STATUS_LABELS[order.status] ?? order.status}
               </span>
-              <span className="font-semibold text-gray-900">{formatPrice(Number(order.total))}</span>
+              <span className="font-semibold text-gray-900">
+                {formatMoney(Number(order.total), order.currency === "ARS" ? "ARS" : "USD")}
+                {Number(order.shippingCost) > 0 && (
+                  <span className="block text-xs font-normal text-gray-400">
+                    + {formatMoney(Number(order.shippingCost), "ARS")} de envío
+                  </span>
+                )}
+              </span>
               <ChevronRight className="w-4 h-4 text-gray-300" />
             </div>
           </div>

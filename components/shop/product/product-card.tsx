@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { ShoppingCart, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import { useCurrency } from "@/hooks/use-currency";
 import { useCartStore } from "@/hooks/use-cart";
 import { toast } from "@/hooks/use-toast";
 import { WishlistButton } from "@/components/shop/product/wishlist-button";
+import { ProductMedia } from "@/components/shop/product/product-media";
 import type { ProductWithRelations } from "@/types";
 
 interface ProductCardProps {
@@ -25,10 +25,9 @@ export function ProductCard({ product, className, isSaved = false }: ProductCard
   // Respeta la moneda que el visitante eligió ver (USD o ARS).
   const { format: formatMoney } = useCurrency();
 
+  // Puede no haber foto: la tarjeta dibuja la ilustración de su familia.
   const mainImage =
-    product.images.find((i) => i.isMain)?.url ??
-    product.images[0]?.url ??
-    "/images/placeholder.svg";
+    product.images.find((i) => i.isMain)?.url ?? product.images[0]?.url ?? null;
 
   const discount = calculateDiscount(product.comparePrice, product.price);
   const inStock = product.stock > 0;
@@ -40,7 +39,9 @@ export function ProductCard({ product, className, isSaved = false }: ProductCard
       id: product.id,
       name: product.name,
       price: product.price,
-      image: mainImage,
+      priceArs: product.priceArs,
+      // El carrito guarda una URL: sin foto queda el placeholder neutro.
+      image: mainImage ?? "/images/placeholder.svg",
       quantity: 1,
       stock: product.stock,
     });
@@ -58,12 +59,15 @@ export function ProductCard({ product, className, isSaved = false }: ProductCard
       <Link href={`/products/${product.slug}`} className="block">
         {/* Image */}
         <div className="relative aspect-square bg-gray-50 rounded-2xl overflow-hidden mb-4">
-          <Image
+          <ProductMedia
             src={mainImage}
             alt={product.name}
-            fill
-            className="object-contain p-4 transition-transform duration-500 group-hover:scale-105"
+            productName={product.name}
+            categorySlug={product.category?.slug}
+            categoryName={product.category?.name}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            className="p-4 transition-transform duration-500 group-hover:scale-105"
+            illustrationClassName="p-6 transition-transform duration-500 group-hover:scale-105"
           />
 
           {/* Badges */}
@@ -130,11 +134,11 @@ export function ProductCard({ product, className, isSaved = false }: ProductCard
           </h3>
           <div className="flex items-center gap-2">
             <span className="text-base font-bold text-gray-900">
-              {formatMoney(product.price)}
+              {formatMoney(product.price, product.priceArs)}
             </span>
             {product.comparePrice && product.comparePrice > product.price && (
               <span className="text-sm text-gray-400 line-through">
-                {formatMoney(product.comparePrice)}
+                {formatMoney(product.comparePrice, product.comparePriceArs)}
               </span>
             )}
           </div>

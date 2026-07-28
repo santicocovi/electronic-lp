@@ -69,14 +69,47 @@ export async function createCheckoutPreference(
   const client = getClient();
   const BASE = getAppUrl();
 
-  const items = opts.items.map((item) => ({
-    id: item.id,
-    title: item.title,
-    quantity: item.quantity,
-    unit_price: item.unitPriceArs,
-    currency_id: "ARS",
-    picture_url: item.picture_url,
-  }));
+  /**
+   * Los ítems se ajustan para que la suma coincida EXACTAMENTE con el total
+   * calculado por el servidor.
+   *
+   * Corrige un error de cobro real: `discountArs` llegaba pero no se usaba en
+   * ningún lado, así que un pedido con cupón se cobraba por Mercado Pago sin el
+   * descuento aplicado. Mercado Pago no acepta ítems de importe negativo, así
+   * que el descuento no puede mandarse como una línea aparte: se reparte entre
+   * las líneas de producto en proporción a su peso, y el resto de la división
+   * lo absorbe la última para que no queden diferencias de un peso.
+   */
+  const grossGoods = opts.items.reduce((sum, i) => sum + i.unitPriceArs * i.quantity, 0);
+  const discount = Math.min(Math.max(0, Math.round(opts.discountArs)), grossGoods);
+  const netGoods = grossGoods - discount;
+
+  let assigned = 0;
+
+  const items = opts.items.map((item, index) => {
+    const isLast = index === opts.items.length - 1;
+    const gross = item.unitPriceArs * item.quantity;
+
+    // La última línea toma la diferencia: evita que el redondeo de los
+    // porcentajes deje el total unos pesos por encima o por debajo.
+    const lineTotal = isLast
+      ? netGoods - assigned
+      : grossGoods > 0
+        ? Math.round((gross / grossGoods) * netGoods)
+        : 0;
+
+    assigned += lineTotal;
+
+    return {
+      id: item.id,
+      title: item.title,
+      quantity: item.quantity,
+      // MP multiplica unit_price × quantity, así que se divide de nuevo.
+      unit_price: Math.max(0, Math.round((lineTotal / item.quantity) * 100) / 100),
+      currency_id: "ARS",
+      picture_url: item.picture_url,
+    };
+  });
 
   // El recargo del medio de pago se manda como un ítem propio para que el
   // cliente vea el desglose y el total de MP coincida con el del pedido.
@@ -85,7 +118,24 @@ export async function createCheckoutPreference(
       id: "surcharge",
       title: "Recargo por medio de pago",
       quantity: 1,
-      unit_price: opts.surchargeArs,
+      unit_price: Math.round(opts.surchargeArs),
+      currency_id: "ARS",
+      picture_url: undefined,
+    });
+  }
+
+  // Red de seguridad: si por redondeos la suma no llega al total del pedido, se
+  // agrega la diferencia como ajuste. Nunca se cobra de menos ni de más.
+  const itemsTotal = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+  const expectedGoods = opts.totalArs - opts.shippingCostArs;
+  const drift = Math.round(expectedGoods - itemsTotal);
+
+  if (drift > 0) {
+    items.push({
+      id: "adjustment",
+      title: "Ajuste de redondeo",
+      quantity: 1,
+      unit_price: drift,
       currency_id: "ARS",
       picture_url: undefined,
     });

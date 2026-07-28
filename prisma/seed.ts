@@ -9,7 +9,7 @@ import bcrypt from "bcryptjs";
 const db = new PrismaClient();
 
 async function main() {
-  console.log("🌱 Iniciando seed...");
+  console.log("Iniciando seed...");
 
   // ─── Admin User ─────────────────────────────────────────────
   const adminEmail = "admin@electroniclp.com";
@@ -26,32 +26,35 @@ async function main() {
         emailVerified: new Date(),
       },
     });
-    console.log("✅ Admin creado: admin@electroniclp.com / Admin123!");
+    console.log("Admin creado: admin@electroniclp.com / Admin123!");
   }
 
   // ─── Categories ─────────────────────────────────────────────
+  // El ícono de cada categoría lo resuelve la UI con iconografía Lucide a partir
+  // del slug (ver lib/category-icons). No se guardan emojis en la base: el
+  // `icon: null` del update limpia los que hubieran quedado de seeds anteriores.
   const categories = [
-    { name: "iPhone", slug: "iphone", icon: "📱", order: 1 },
-    { name: "MacBook", slug: "macbook", icon: "💻", order: 2 },
-    { name: "iPad", slug: "ipad", icon: "⬜", order: 3 },
-    { name: "Apple Watch", slug: "apple-watch", icon: "⌚", order: 4 },
-    { name: "AirPods", slug: "airpods", icon: "🎧", order: 5 },
-    { name: "Auriculares", slug: "auriculares", icon: "🎧", order: 6 },
-    { name: "Parlantes", slug: "parlantes", icon: "🔊", order: 7 },
-    { name: "Monitores", slug: "monitores", icon: "🖥️", order: 8 },
-    { name: "Gaming", slug: "gaming", icon: "🎮", order: 9 },
-    { name: "Smart Home", slug: "smart-home", icon: "🏠", order: 10 },
-    { name: "Accesorios", slug: "accesorios", icon: "🔌", order: 11 },
+    { name: "iPhone", slug: "iphone", order: 1 },
+    { name: "MacBook", slug: "macbook", order: 2 },
+    { name: "iPad", slug: "ipad", order: 3 },
+    { name: "Apple Watch", slug: "apple-watch", order: 4 },
+    { name: "AirPods", slug: "airpods", order: 5 },
+    { name: "Auriculares", slug: "auriculares", order: 6 },
+    { name: "Parlantes", slug: "parlantes", order: 7 },
+    { name: "Monitores", slug: "monitores", order: 8 },
+    { name: "Gaming", slug: "gaming", order: 9 },
+    { name: "Smart Home", slug: "smart-home", order: 10 },
+    { name: "Accesorios", slug: "accesorios", order: 11 },
   ];
 
   for (const cat of categories) {
     await db.category.upsert({
       where: { slug: cat.slug },
-      create: { ...cat, isActive: true, showInNav: true },
-      update: { ...cat },
+      create: { ...cat, icon: null, isActive: true, showInNav: true },
+      update: { ...cat, icon: null },
     });
   }
-  console.log("✅ Categorías creadas");
+  console.log("Categorías creadas");
 
   // ─── Brands ─────────────────────────────────────────────────
   const brands = [
@@ -72,7 +75,7 @@ async function main() {
       update: { ...brand },
     });
   }
-  console.log("✅ Marcas creadas");
+  console.log("Marcas creadas");
 
   // ─── Shipping Methods ────────────────────────────────────────
   await db.shippingMethod.upsert({
@@ -113,7 +116,7 @@ async function main() {
     },
     update: {},
   });
-  console.log("✅ Métodos de envío creados");
+  console.log("Métodos de envío creados");
 
   // ─── FAQs ────────────────────────────────────────────────────
   const faqs = [
@@ -131,7 +134,7 @@ async function main() {
       await db.fAQ.create({ data: { ...faq, isActive: true } });
     }
   }
-  console.log("✅ FAQs creados");
+  console.log("FAQs creados");
 
   // ─── Testimonials ────────────────────────────────────────────
   const testimonials = [
@@ -149,7 +152,7 @@ async function main() {
       await db.testimonial.create({ data: { ...t, isApproved: true } });
     }
   }
-  console.log("✅ Testimonios creados");
+  console.log("Testimonios creados");
 
   // ─── Site Settings ───────────────────────────────────────────
   const settings = [
@@ -162,6 +165,10 @@ async function main() {
     { key: "email", value: "electroniclpok@gmail.com", group: "contact" },
     { key: "whatsapp", value: "5492214358517", group: "contact" },
     { key: "instagram", value: "https://instagram.com/electronic.lp", group: "contact" },
+    // Moneda en la que están cargados los precios del catálogo. Es la que lee
+    // el motor de precios (lib/pricing) y la que se puede cambiar desde
+    // /admin/settings/payments. `currency` es solo etiqueta de presentación.
+    { key: "base_currency", value: "USD", group: "currency" },
     { key: "currency", value: "ARS", group: "general" },
     { key: "currencySymbol", value: "$", group: "general" },
     { key: "freeShippingFrom", value: "150000", group: "shipping" },
@@ -176,13 +183,13 @@ async function main() {
       update: { value: s.value },
     });
   }
-  console.log("✅ Configuración del sitio creada");
+  console.log("Configuración del sitio creada");
 
-  console.log("\n🎉 Seed completado exitosamente!");
-  console.log("\n📋 Datos del admin:");
+  console.log("\nSeed completado exitosamente.");
+  console.log("\nDatos del admin:");
   console.log("   Email: admin@electroniclp.com");
   console.log("   Password: Admin123!");
-  console.log("\n⚠️  Cambiá la contraseña del admin después de ingresar por primera vez.");
+  console.log("\nIMPORTANTE: cambiá la contraseña del admin después de ingresar por primera vez.");
 }
 
 main()

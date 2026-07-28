@@ -41,12 +41,23 @@ export function CatalogView({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [result, setResult] = useState<PaginatedResult<ProductWithRelations> | null>(null);
 
+  /**
+   * Firma de la URL: es la única dependencia real del listado. Los filtros que
+   * llegan por props se derivan de estos mismos parámetros en el servidor, así
+   * que volver a pedir productos cuando cambia la firma alcanza. Se extrae a una
+   * variable para que la regla de dependencias pueda verificarla.
+   */
+  const searchKey = searchParams.toString();
+
   useEffect(() => {
     startTransition(async () => {
       const data = await getProducts(initialFilters);
       setResult(data);
     });
-  }, [searchParams.toString()]);
+    // `initialFilters` es un objeto nuevo en cada render del servidor: incluirlo
+    // dispararía un bucle de peticiones.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKey]);
 
   /**
    * Applies every change in one push. Calling this once per key would drop all

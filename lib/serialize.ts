@@ -3,7 +3,7 @@ import type { ProductWithRelations } from "@/types";
 /**
  * Prisma returns money columns as Decimal instances. Those can't be handed to a
  * Client Component (or returned from a server action) — they arrive mangled and
- * break formatPrice(). Coerce every money field to a plain number first.
+ * break the money formatting. Coerce every money field to a plain number first.
  */
 export function serializeProduct<T extends Record<string, unknown>>(
   product: T
@@ -12,6 +12,8 @@ export function serializeProduct<T extends Record<string, unknown>>(
     ...product,
     price: Number(product.price),
     comparePrice: product.comparePrice != null ? Number(product.comparePrice) : null,
+    priceArs: product.priceArs != null ? Number(product.priceArs) : null,
+    comparePriceArs: product.comparePriceArs != null ? Number(product.comparePriceArs) : null,
     variants: ((product.variants ?? []) as { price: unknown }[]).map((v) => ({
       ...v,
       price: v.price != null ? Number(v.price) : null,

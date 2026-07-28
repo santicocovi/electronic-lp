@@ -137,6 +137,9 @@ export const productSchema = z.object({
   price: z.coerce.number().positive("El precio debe ser mayor a 0"),
   comparePrice: optionalNumber,
   costPrice: optionalNumber,
+  // Precios en pesos fijados a mano. Vacíos = se convierten con la cotización.
+  priceArs: optionalNumber,
+  comparePriceArs: optionalNumber,
   stock: z.coerce.number().int().min(0),
   lowStockAlert: z.coerce.number().int().min(0).default(5),
   weight: optionalNumber,
@@ -157,7 +160,8 @@ export const categorySchema = z.object({
   slug: z.string().optional(),
   description: z.string().optional(),
   image: z.string().optional(),
-  icon: z.string().optional(),
+  // `icon` ya no se administra: el ícono se resuelve por slug con iconografía
+  // Lucide (lib/category-icons). La columna sigue en la base solo por histórico.
   parentId: z.string().optional(),
   order: z.coerce.number().int().default(0),
   isActive: z.boolean().default(true),

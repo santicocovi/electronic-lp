@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Package, MapPin, Truck } from "lucide-react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { formatPrice } from "@/lib/utils";
 import { formatMoney } from "@/lib/pricing";
 import { formatStoreDateTime } from "@/lib/dates";
 import {
@@ -26,6 +25,15 @@ export default async function ProfileOrderDetailPage({ params }: { params: Promi
   });
 
   if (!order) notFound();
+
+  /**
+   * Los importes de mercadería del pedido están en la moneda con la que se
+   * cerró (`order.currency`), no siempre en dólares. Formatearlos con el
+   * default USD mostraba "US$ 950.000" en pedidos cerrados en pesos.
+   * El envío es la excepción: siempre va en ARS.
+   */
+  const orderCurrency = order.currency === "ARS" ? "ARS" : "USD";
+  const fmt = (value: unknown) => formatMoney(Number(value), orderCurrency);
 
   return (
     <div className="space-y-6">
@@ -74,9 +82,9 @@ export default async function ProfileOrderDetailPage({ params }: { params: Promi
                 <Link href={`/products/${item.product.slug}`} className="text-sm font-semibold text-gray-900 hover:text-brand-blue-mid">
                   {item.name}
                 </Link>
-                <p className="text-xs text-gray-400">{formatPrice(Number(item.price))} × {item.quantity}</p>
+                <p className="text-xs text-gray-400">{fmt(item.price)} × {item.quantity}</p>
               </div>
-              <p className="text-sm font-semibold text-gray-900">{formatPrice(Number(item.subtotal))}</p>
+              <p className="text-sm font-semibold text-gray-900">{fmt(item.subtotal)}</p>
             </div>
           ))}
         </div>
@@ -84,12 +92,12 @@ export default async function ProfileOrderDetailPage({ params }: { params: Promi
         <div className="border-t border-gray-100 px-5 py-4 space-y-2 bg-gray-50/50">
           <div className="flex justify-between text-sm text-gray-600">
             <span>Productos</span>
-            <span>{formatPrice(Number(order.subtotal))}</span>
+            <span>{fmt(order.subtotal)}</span>
           </div>
           {Number(order.discount) > 0 && (
             <div className="flex justify-between text-sm text-green-600">
               <span>Descuento{order.couponCode ? ` (${order.couponCode})` : ""}</span>
-              <span>-{formatPrice(Number(order.discount))}</span>
+              <span>-{fmt(order.discount)}</span>
             </div>
           )}
           {/* El envío se cobra siempre en pesos y no se convierte a dólares. */}
@@ -103,7 +111,7 @@ export default async function ProfileOrderDetailPage({ params }: { params: Promi
           </div>
           <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-200">
             <span>Mercadería</span>
-            <span>{formatPrice(Number(order.total))}</span>
+            <span>{fmt(order.total)}</span>
           </div>
           {order.totalArs !== null && (
             <div className="flex justify-between text-sm font-semibold text-gray-700">

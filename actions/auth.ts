@@ -9,7 +9,7 @@ import {
   consumeVerificationToken,
 } from "@/lib/tokens";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { registerSchema, resetPasswordSchema } from "@/validations";
+import { forgotPasswordSchema, registerSchema, resetPasswordSchema } from "@/validations";
 import type { ActionResult } from "@/types";
 import type { RegisterInput } from "@/validations";
 
@@ -164,7 +164,21 @@ export async function requestPasswordReset(rawEmail: string): Promise<ActionResu
   const genericSuccess: ActionResult = { success: true };
 
   try {
-    const email = normalizeEmail(rawEmail);
+    const parsed = forgotPasswordSchema.safeParse({ email: rawEmail });
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? "Email inválido" };
+    }
+
+    const email = normalizeEmail(parsed.data.email);
+
+    // Sin SMTP el mail nunca va a llegar: conviene decirlo en vez de mostrar un
+    // "revisá tu casilla" que deja al usuario esperando indefinidamente.
+    if (!isMailConfigured()) {
+      return {
+        success: false,
+        error: "El envío de emails no está configurado. Escribinos por WhatsApp y te ayudamos.",
+      };
+    }
 
     const limit = rateLimit(`reset:${email}`, 3, 15 * 60 * 1000);
     if (!limit.success) {
@@ -188,6 +202,32 @@ export async function requestPasswordReset(rawEmail: string): Promise<ActionResu
     console.error("[requestPasswordReset] error:", error);
     // Se informa el fallo real para que el usuario no espere un mail que no llega.
     return { success: false, error: "No pudimos enviar el email. Intentá más tarde." };
+  }
+}
+
+/**
+ * Estado de un token de recuperación, sin consumirlo.
+ *
+ * Permite que la pantalla de "nueva contraseña" avise que el link venció ANTES
+ * de que el usuario escriba una contraseña dos veces y recién ahí se entere.
+ * No revela a quién pertenece el token.
+ */
+export async function checkPasswordResetToken(
+  token: string
+): Promise<"valid" | "expired" | "invalid"> {
+  try {
+    if (!token) return "invalid";
+
+    const record = await db.passwordResetToken.findUnique({
+      where: { token },
+      select: { expires: true },
+    });
+
+    if (!record) return "invalid";
+    return record.expires < new Date() ? "expired" : "valid";
+  } catch (error) {
+    console.error("[checkPasswordResetToken] error:", error);
+    return "invalid";
   }
 }
 
@@ -215,7 +255,9 @@ export async function resetPassword(token: string, password: string): Promise<Ac
         data: { password: hashedPassword, emailVerified: new Date() },
       }),
       db.passwordResetToken.delete({ where: { token } }),
-      // Se invalidan las sesiones abiertas del usuario tras cambiar la contraseña.
+      // Limpia las sesiones persistidas del adaptador. Con la estrategia JWT
+      // actual no hay filas que borrar, así que un JWT ya emitido sigue siendo
+      // válido hasta que expira; queda por si se migra a sesiones en base.
       db.session.deleteMany({ where: { user: { email: record.email } } }),
     ]);
 

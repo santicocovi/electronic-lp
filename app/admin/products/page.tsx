@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { formatPrice } from "@/lib/utils";
+import { formatMoney, getPricingConfig } from "@/lib/pricing";
 import { Plus, Pencil, Eye, EyeOff, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +30,12 @@ export default async function AdminProductsPage({
   if (status === "inactive") where.isActive = false;
   if (status === "out") where.stock = 0;
 
-  const [total, products] = await Promise.all([
+  const [total, products, pricing] = await Promise.all([
     db.product.count({ where }),
     db.product.findMany({
       where,
       select: {
-        id: true, name: true, slug: true, sku: true, price: true,
+        id: true, name: true, slug: true, sku: true, price: true, priceArs: true,
         stock: true, isActive: true, isFeatured: true, isNew: true, isOnSale: true,
         images: { select: { url: true }, where: { isMain: true }, take: 1 },
         category: { select: { name: true } },
@@ -45,6 +45,7 @@ export default async function AdminProductsPage({
       skip: (page - 1) * limit,
       take: limit,
     }),
+    getPricingConfig(),
   ]);
 
   const totalPages = Math.ceil(total / limit);
@@ -118,7 +119,16 @@ export default async function AdminProductsPage({
                   </div>
                 </td>
                 <td className="px-4 py-4 text-sm text-gray-500 hidden md:table-cell">{p.sku ?? "–"}</td>
-                <td className="px-4 py-4 text-sm font-semibold text-gray-900">{formatPrice(Number(p.price))}</td>
+                <td className="px-4 py-4 text-sm font-semibold text-gray-900">
+                  {formatMoney(Number(p.price), pricing.baseCurrency)}
+                  {/* Precio en pesos fijado a mano: se muestra para poder
+                      auditarlo de un vistazo sin abrir cada producto. */}
+                  {p.priceArs !== null && (
+                    <span className="block text-xs font-normal text-gray-400">
+                      {formatMoney(Number(p.priceArs), "ARS")} fijo
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-4 hidden sm:table-cell">
                   <span className={`text-xs font-medium px-2 py-1 rounded-full ${p.stock === 0 ? "bg-red-100 text-red-600" : p.stock <= 5 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
                     {p.stock === 0 ? "Sin stock" : `${p.stock} u.`}

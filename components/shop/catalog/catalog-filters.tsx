@@ -6,7 +6,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useCurrency } from "@/hooks/use-currency";
 
 interface CatalogFiltersProps {
   open: boolean;
@@ -25,11 +26,24 @@ export function CatalogFilters({
   open, onClose, categories, brands, priceRange, onFilter, onFilterMany, lockedCategorySlug,
 }: CatalogFiltersProps) {
   const searchParams = useSearchParams();
+  const { format: formatDisplayPrice } = useCurrency();
   const [priceValues, setPriceValues] = useState([priceRange.min, priceRange.max]);
 
   const activeCategory = searchParams.get("category");
   const activeBrand = searchParams.get("brand");
   const inStock = searchParams.get("inStock") === "true";
+
+  /**
+   * Paso del deslizador, derivado del rango real del catálogo.
+   * Estaba fijo en 1000, lo que en una tienda con precios en dólares dejaba el
+   * control con tres o cuatro posiciones útiles.
+   */
+  const priceStep = (() => {
+    const span = Math.max(1, priceRange.max - priceRange.min);
+    const raw = span / 100;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
+    return Math.max(1, Math.round(raw / magnitude) * magnitude);
+  })();
 
   function applyPrice() {
     onFilterMany({
@@ -136,14 +150,20 @@ export function CatalogFilters({
                 <Slider
                   min={priceRange.min}
                   max={priceRange.max}
-                  step={1000}
+                  step={priceStep}
                   value={priceValues}
                   onValueChange={(val) => setPriceValues(Array.isArray(val) ? [...val] as number[] : [val as number])}
                   className="mb-4"
                 />
+                {/*
+                  Los valores del filtro están en la moneda base (es lo que se
+                  consulta contra la base de datos), pero se muestran en la
+                  moneda que el visitante eligió ver. Antes se formateaban
+                  siempre como dólares.
+                */}
                 <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-                  <span>{formatPrice(priceValues[0])}</span>
-                  <span>{formatPrice(priceValues[1])}</span>
+                  <span>{formatDisplayPrice(priceValues[0])}</span>
+                  <span>{formatDisplayPrice(priceValues[1])}</span>
                 </div>
                 <Button
                   size="sm"

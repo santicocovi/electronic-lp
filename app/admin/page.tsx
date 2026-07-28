@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
-import { formatPrice } from "@/lib/utils";
+import { formatMoney, getPricingConfig } from "@/lib/pricing";
 import { TrendingUp, ShoppingBag, Users, Package, AlertTriangle } from "lucide-react";
 
 export const metadata = { title: "Dashboard | Admin" };
@@ -13,7 +14,7 @@ export default async function AdminDashboard() {
     totalRevenue, monthRevenue, lastMonthRevenue,
     totalOrders, monthOrders,
     totalCustomers, monthCustomers,
-    totalProducts, lowStock, recentOrders,
+    totalProducts, lowStock, recentOrders, pricing,
   ] = await Promise.all([
     db.order.aggregate({ _sum: { total: true }, where: { paymentStatus: "APPROVED" } }),
     db.order.aggregate({ _sum: { total: true }, where: { paymentStatus: "APPROVED", createdAt: { gte: startOfMonth } } }),
@@ -24,8 +25,16 @@ export default async function AdminDashboard() {
     db.user.count({ where: { role: "USER", createdAt: { gte: startOfMonth } } }),
     db.product.count({ where: { isActive: true } }),
     db.product.findMany({ where: { isActive: true, stock: { lte: 5 } }, select: { id: true, name: true, stock: true, slug: true }, orderBy: { stock: "asc" }, take: 5 }),
-    db.order.findMany({ orderBy: { createdAt: "desc" }, take: 8, select: { id: true, orderNumber: true, total: true, status: true, paymentStatus: true, createdAt: true, shippingName: true, items: { take: 1, select: { name: true } } } }),
+    db.order.findMany({ orderBy: { createdAt: "desc" }, take: 8, select: { id: true, orderNumber: true, total: true, currency: true, status: true, paymentStatus: true, createdAt: true, shippingName: true, items: { take: 1, select: { name: true } } } }),
+    getPricingConfig(),
   ]);
+
+  /**
+   * Los importes de mercadería de los pedidos están en la moneda base de la
+   * tienda, no siempre en dólares. Formatearlos con un default fijo mostraba el
+   * símbolo equivocado cuando la tienda opera en pesos.
+   */
+  const fmt = (value: unknown) => formatMoney(Number(value ?? 0), pricing.baseCurrency);
 
   const revenueGrowth = lastMonthRevenue._sum.total
     ? Math.round(((Number(monthRevenue._sum.total ?? 0) - Number(lastMonthRevenue._sum.total)) / Number(lastMonthRevenue._sum.total)) * 100)
@@ -34,7 +43,7 @@ export default async function AdminDashboard() {
   const stats = [
     {
       label: "Ingresos del mes",
-      value: formatPrice(Number(monthRevenue._sum.total ?? 0)),
+      value: fmt(monthRevenue._sum.total),
       icon: TrendingUp,
       change: `${revenueGrowth > 0 ? "+" : ""}${revenueGrowth}% vs mes anterior`,
       color: "bg-blue-50 text-brand-blue-mid",
@@ -102,7 +111,7 @@ export default async function AdminDashboard() {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between p-6 border-b border-gray-100">
             <h2 className="font-semibold text-gray-900">Últimos pedidos</h2>
-            <a href="/admin/orders" className="text-sm text-brand-blue-mid hover:underline">Ver todos</a>
+            <Link href="/admin/orders" className="text-sm text-brand-blue-mid hover:underline">Ver todos</Link>
           </div>
           <div className="divide-y divide-gray-50">
             {recentOrders.map((order) => (
@@ -116,7 +125,9 @@ export default async function AdminDashboard() {
                     {order.status}
                   </span>
                 </div>
-                <p className="text-sm font-semibold text-gray-900">{formatPrice(Number(order.total))}</p>
+                <p className="text-sm font-semibold text-gray-900">
+                  {formatMoney(Number(order.total), order.currency === "ARS" ? "ARS" : "USD")}
+                </p>
               </div>
             ))}
           </div>

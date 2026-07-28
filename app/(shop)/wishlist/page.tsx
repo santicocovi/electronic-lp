@@ -22,7 +22,8 @@ export default async function WishlistPage() {
       product: {
         select: {
           id: true, name: true, slug: true, shortDescription: true,
-          price: true, comparePrice: true, stock: true, isNew: true,
+          price: true, comparePrice: true, priceArs: true, comparePriceArs: true,
+          stock: true, isNew: true,
           isOnSale: true, isFeatured: true, freeShipping: true, salesCount: true,
           warranty: true, isActive: true, createdAt: true,
           images: { select: { id: true, url: true, alt: true, order: true, isMain: true }, orderBy: { order: "asc" } },

@@ -16,7 +16,7 @@ interface CurrencySwitchProps {
 }
 
 export function CurrencySwitch({ className, variant = "default" }: CurrencySwitchProps) {
-  const { currency, setCurrency, rate, arsSurchargePercent } = useCurrency();
+  const { currency, setCurrency, rate } = useCurrency();
 
   const options: { value: "USD" | "ARS"; label: string }[] = [
     { value: "USD", label: "USD" },
@@ -27,9 +27,7 @@ export function CurrencySwitch({ className, variant = "default" }: CurrencySwitc
     <div
       role="group"
       aria-label="Moneda de los precios"
-      title={`1 USD = $${rate.toLocaleString("es-AR")} ARS${
-        arsSurchargePercent > 0 ? ` · en pesos se aplica +${arsSurchargePercent}%` : ""
-      }`}
+      title={`1 USD = $${rate.toLocaleString("es-AR")} ARS. Los recargos por medio de pago se muestran en el checkout.`}
       className={cn(
         "inline-flex items-center rounded-full p-0.5",
         variant === "bare" ? "bg-white/10" : "bg-gray-100",

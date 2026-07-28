@@ -45,7 +45,7 @@ export function TestimonialsSection({ testimonials }: TestimonialsSectionProps) 
                   />
                 ))}
               </div>
-              <p className="text-gray-700 leading-relaxed mb-5 text-sm">"{t.body}"</p>
+              <p className="text-gray-700 leading-relaxed mb-5 text-sm">&ldquo;{t.body}&rdquo;</p>
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-brand-blue-subtle flex items-center justify-center text-brand-blue-mid font-bold text-sm">
                   {t.name.charAt(0).toUpperCase()}

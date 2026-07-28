@@ -30,7 +30,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 const PRODUCT_SELECT = {
   id: true, name: true, slug: true, shortDescription: true,
-  price: true, comparePrice: true, stock: true, isNew: true,
+  price: true, comparePrice: true, priceArs: true, comparePriceArs: true,
+  stock: true, isNew: true,
   isOnSale: true, isFeatured: true, freeShipping: true, salesCount: true,
   warranty: true, isActive: true, createdAt: true,
   images: { select: { id: true, url: true, alt: true, order: true, isMain: true }, orderBy: { order: "asc" as const } },
@@ -103,11 +104,14 @@ export default async function HomePage() {
         categories={categories.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))}
       />
 
+      {/*
+        Orden de la portada: el carrusel de destacados va inmediatamente después
+        del Hero, que es la posición de mayor visibilidad. Antes quedaba debajo
+        de categorías y marcas, a dos scrolls del pliegue. Categorías y marcas
+        pasan detrás: son navegación, y funcionan mejor una vez que el visitante
+        ya vio producto concreto.
+      */}
       <ShippingNotice variant="banner" />
-
-      <CategoriesSection categories={categories as unknown as CategoryWithChildren[]} />
-
-      <BrandsSection brands={brands} />
 
       {featured.length > 0 && (
         <FeaturedCarousel
@@ -117,6 +121,10 @@ export default async function HomePage() {
           viewAllHref="/products?filter=featured"
         />
       )}
+
+      <CategoriesSection categories={categories as unknown as CategoryWithChildren[]} />
+
+      <BrandsSection brands={brands} />
 
       {newProducts.length > 0 && (
         <div className="bg-gray-50/50">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { CatalogView } from "@/components/shop/catalog/catalog-view";
+import { getCategoryIcon } from "@/lib/category-icons";
 import type { FilterParams } from "@/types";
 
 interface CategoryPageProps {
@@ -20,7 +21,7 @@ async function getCategory(slug: string) {
   return db.category.findFirst({
     where: { slug, isActive: true },
     select: {
-      id: true, name: true, slug: true, description: true, icon: true, image: true,
+      id: true, name: true, slug: true, description: true, image: true,
       metaTitle: true, metaDesc: true,
       _count: { select: { products: { where: { isActive: true } } } },
     },
@@ -47,6 +48,8 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
 
   const category = await getCategory(slug);
   if (!category) notFound();
+
+  const CategoryIcon = getCategoryIcon(category.slug, category.name);
 
   const filters: FilterParams = {
     category: slug,
@@ -83,15 +86,15 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
       <section className="bg-gray-50/60 border-b border-gray-100">
         <div className="container mx-auto px-4 py-12 md:py-16">
           <div className="flex items-center gap-5">
-            {(category.image || category.icon) && (
-              <div className="w-16 h-16 md:w-20 md:h-20 rounded-3xl bg-brand-blue-subtle flex items-center justify-center text-3xl md:text-4xl flex-shrink-0 overflow-hidden">
-                {category.image ? (
-                  <img src={category.image} alt={category.name} className="w-full h-full object-contain p-2" />
-                ) : (
-                  <span>{category.icon}</span>
-                )}
-              </div>
-            )}
+            {/* Si la categoría tiene imagen se muestra; si no, un ícono de línea.
+                Nunca un emoji: la iconografía se resuelve por slug. */}
+            <div className="w-16 h-16 md:w-20 md:h-20 rounded-3xl bg-brand-blue-subtle flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {category.image ? (
+                <img src={category.image} alt={category.name} className="w-full h-full object-contain p-2" />
+              ) : (
+                <CategoryIcon className="w-7 h-7 md:w-8 md:h-8 text-brand-blue-mid" aria-hidden="true" />
+              )}
+            </div>
             <div className="min-w-0">
               <h1 className="heading-lg text-gray-900">{category.name}</h1>
               <p className="text-gray-500 mt-1">

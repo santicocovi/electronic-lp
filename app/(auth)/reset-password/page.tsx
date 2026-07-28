@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -9,8 +9,11 @@ import { Loader2, Eye, EyeOff, CheckCircle2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { resetPassword } from "@/actions/auth";
+import { checkPasswordResetToken, resetPassword } from "@/actions/auth";
 import { resetPasswordSchema, type ResetPasswordInput } from "@/validations";
+
+/** Estado del link: se consulta al servidor antes de mostrar el formulario. */
+type TokenState = "checking" | "valid" | "expired" | "invalid";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -20,9 +23,25 @@ function ResetPasswordForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [tokenState, setTokenState] = useState<TokenState>(token ? "checking" : "invalid");
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } =
     useForm<ResetPasswordInput>({ resolver: zodResolver(resetPasswordSchema) });
+
+  // Se valida el token al entrar: así el usuario se entera de que venció antes
+  // de escribir la contraseña dos veces, no después de enviarla.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    checkPasswordResetToken(token).then((state) => {
+      if (!cancelled) setTokenState(state);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   async function onSubmit(data: ResetPasswordInput) {
     if (!token) return;
@@ -32,15 +51,33 @@ function ResetPasswordForm() {
     else setError(result.error);
   }
 
-  if (!token) {
+  if (tokenState === "checking") {
+    return (
+      <div
+        className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 flex items-center justify-center h-64"
+        role="status"
+        aria-label="Validando el link"
+      >
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" aria-hidden="true" />
+      </div>
+    );
+  }
+
+  if (tokenState !== "valid" && !done) {
+    const expired = tokenState === "expired";
+
     return (
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center">
         <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-5">
-          <AlertTriangle className="w-7 h-7" />
+          <AlertTriangle className="w-7 h-7" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Link inválido</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          {expired ? "El link venció" : "Link inválido"}
+        </h1>
         <p className="text-gray-500 text-sm mb-8">
-          Este link de recuperación no es válido. Pedí uno nuevo para continuar.
+          {expired
+            ? "Los links de recuperación vencen a la hora de haberse enviado. Pedí uno nuevo para continuar."
+            : "Este link de recuperación no es válido o ya fue usado. Pedí uno nuevo para continuar."}
         </p>
         <Link href="/forgot-password">
           <Button className="rounded-xl w-full bg-brand-blue-mid hover:bg-brand-blue-hover">
@@ -55,7 +92,7 @@ function ResetPasswordForm() {
     return (
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 text-center">
         <div className="w-14 h-14 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center mx-auto mb-5">
-          <CheckCircle2 className="w-7 h-7" />
+          <CheckCircle2 className="w-7 h-7" aria-hidden="true" />
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Contraseña actualizada</h1>
         <p className="text-gray-500 text-sm mb-8">

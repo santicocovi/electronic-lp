@@ -10,10 +10,12 @@ import type { CategoryWithChildren } from "@/types";
 /**
  * Sección de categorías de la portada.
  *
- * Diseño: la primera categoría ocupa una tarjeta grande y el resto entra en una
- * grilla compacta. Las animaciones se limitan a `transform` y `opacity`, que el
- * navegador compone en la GPU, así que no cuestan repintados ni desplazan el
- * layout. Se respeta `prefers-reduced-motion`.
+ * Diseño: SOLO la categoría principal lleva imagen, en una tarjeta grande. El
+ * resto entra en una grilla compacta resuelta con ícono, tipografía y espacio
+ * —sin fotografía— para que el bloque se lea limpio y no como un mosaico de
+ * imágenes de calidad dispar. Las animaciones se limitan a `transform` y
+ * `opacity`, que el navegador compone en la GPU, así que no cuestan repintados
+ * ni desplazan el layout. Se respeta `prefers-reduced-motion`.
  *
  * Las categorías llegan por props desde un Server Component, de modo que crear
  * una categoría nueva en el panel la hace aparecer acá sin tocar código.
@@ -159,6 +161,15 @@ function LeadCard({
   );
 }
 
+/**
+ * Tarjeta secundaria: sin imagen, a propósito.
+ *
+ * Solo la categoría principal lleva fotografía; el resto se resuelve con
+ * tipografía, aire y un ícono de línea. Para que no se lean como tarjetas
+ * vacías, la jerarquía la sostienen tres elementos: el ícono en su contenedor
+ * propio, el nombre con peso semibold, y el conteo de productos. En hover se
+ * agrega una fina línea de acento superior en lugar de una imagen de fondo.
+ */
 function CompactCard({
   category,
   reduceMotion,
@@ -176,23 +187,17 @@ function CompactCard({
         reduceMotion ? "" : "hover:-translate-y-1 hover:shadow-[0_12px_32px_-12px_rgba(15,23,42,0.18)]"
       }`}
     >
-      {category.image && (
-        <Image
-          src={category.image}
-          alt=""
-          fill
-          sizes="(max-width: 640px) 50vw, 25vw"
-          className={`object-cover opacity-0 transition-opacity duration-500 ${
-            reduceMotion ? "" : "group-hover:opacity-[0.06]"
-          }`}
-        />
-      )}
+      {/* Acento superior: aparece al pasar el puntero, reemplaza a la imagen. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-0.5 origin-left scale-x-0 bg-brand-blue-mid transition-transform duration-500 group-hover:scale-x-100"
+      />
 
-      <span className="relative inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white text-gray-700 ring-1 ring-gray-100 transition-colors duration-300 group-hover:bg-brand-blue-subtle group-hover:text-brand-blue-mid">
+      <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-white text-gray-700 ring-1 ring-gray-100 transition-colors duration-300 group-hover:bg-brand-blue-subtle group-hover:text-brand-blue-mid">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
 
-      <div className="relative">
+      <div>
         <h3 className="text-sm sm:text-base font-semibold leading-tight tracking-tight text-gray-900">
           {category.name}
         </h3>

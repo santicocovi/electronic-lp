@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { formatPrice } from "@/lib/utils";
+import { formatMoney, getPricingConfig } from "@/lib/pricing";
 import { formatStoreDate } from "@/lib/dates";
-import { Plus, Pencil, Percent } from "lucide-react";
+import { Plus, Pencil, Percent, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AdminDeleteButton } from "@/components/admin/admin-delete-button";
@@ -11,8 +11,14 @@ import { deleteCoupon } from "@/actions/admin/coupons";
 export const metadata = { title: "Cupones | Admin" };
 
 export default async function AdminCouponsPage() {
-  const coupons = await db.coupon.findMany({ orderBy: { createdAt: "desc" } });
+  const [coupons, pricing] = await Promise.all([
+    db.coupon.findMany({ orderBy: { createdAt: "desc" } }),
+    getPricingConfig(),
+  ]);
   const now = new Date();
+
+  // Los cupones de importe fijo están expresados en la moneda base del catálogo.
+  const fmt = (value: number) => formatMoney(value, pricing.baseCurrency);
 
   return (
     <div className="space-y-6">
@@ -55,10 +61,10 @@ export default async function AdminCouponsPage() {
                     )}
                   </td>
                   <td className="px-4 py-4 text-sm font-semibold text-gray-900">
-                    {c.type === "PERCENTAGE" ? `${Number(c.value)}%` : formatPrice(Number(c.value))}
+                    {c.type === "PERCENTAGE" ? `${Number(c.value)}%` : fmt(Number(c.value))}
                     {c.minOrderAmount && (
                       <p className="text-xs text-gray-400 font-normal">
-                        desde {formatPrice(Number(c.minOrderAmount))}
+                        desde {fmt(Number(c.minOrderAmount))}
                       </p>
                     )}
                   </td>
@@ -67,7 +73,11 @@ export default async function AdminCouponsPage() {
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
                     {c.startsAt || c.expiresAt ? (
-                      <>{formatStoreDate(c.startsAt)} → {formatStoreDate(c.expiresAt)}</>
+                      <span className="inline-flex items-center gap-1.5">
+                        {formatStoreDate(c.startsAt)}
+                        <ArrowRight className="w-3 h-3 text-gray-300" aria-hidden="true" />
+                        {formatStoreDate(c.expiresAt)}
+                      </span>
                     ) : "Sin límite"}
                   </td>
                   <td className="px-4 py-4">

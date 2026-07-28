@@ -30,6 +30,9 @@ export async function createCategory(data: CategoryInput): Promise<ActionResult<
         ...data,
         slug: existing ? `${slug}-${Date.now()}` : slug,
         parentId: data.parentId || null,
+        // La columna `icon` guardaba emojis. Ya no se usa: se deja siempre en
+        // null para que no vuelva a entrar ninguno desde el panel.
+        icon: null,
       },
     });
 
@@ -57,7 +60,8 @@ export async function updateCategory(id: string, data: CategoryInput): Promise<A
     }
 
     await db.category.update({
-      data: { ...data, slug, parentId: data.parentId || null },
+      // `icon: null` limpia los emojis heredados al guardar desde el panel.
+      data: { ...data, slug, parentId: data.parentId || null, icon: null },
       where: { id },
     });
 

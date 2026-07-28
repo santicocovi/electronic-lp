@@ -49,7 +49,6 @@ export function CategoryForm({ parents, initialData }: CategoryFormProps) {
       slug: initialData?.slug ?? "",
       description: initialData?.description ?? "",
       image: initialData?.image ?? "",
-      icon: initialData?.icon ?? "",
       parentId: initialData?.parentId ?? "",
       order: initialData?.order ?? 0,
       isActive: initialData?.isActive ?? true,
@@ -108,7 +107,7 @@ export function CategoryForm({ parents, initialData }: CategoryFormProps) {
           <Textarea {...register("description")} className="mt-1 rounded-xl" rows={3} />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label>Categoría padre</Label>
             <Controller
@@ -131,17 +130,6 @@ export function CategoryForm({ parents, initialData }: CategoryFormProps) {
                   </SelectContent>
                 </Select>
               )}
-            />
-          </div>
-          <div>
-            {/* El ícono de la tienda ya no sale de este campo: se resuelve con
-                iconografía Lucide según el slug (lib/category-icons). El campo
-                se conserva por compatibilidad con los datos existentes. */}
-            <Label>Ícono interno (opcional)</Label>
-            <Input
-              {...register("icon")}
-              className="mt-1 rounded-xl"
-              placeholder="Sin uso — el ícono se asigna automáticamente"
             />
           </div>
           <div>

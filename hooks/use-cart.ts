@@ -5,7 +5,15 @@ export interface CartItem {
   id: string;          // productId
   variantId?: string;
   name: string;
+  /** Precio unitario en la moneda base de la tienda. */
   price: number;
+  /**
+   * Precio unitario en pesos fijado por el administrador, si lo hay. Se guarda
+   * junto al ítem para que el carrito muestre exactamente el mismo número que
+   * el catálogo cuando el visitante está viendo los precios en ARS.
+   * El importe que se cobra lo recalcula igual el servidor en el checkout.
+   */
+  priceArs?: number | null;
   image: string;
   quantity: number;
   stock: number;

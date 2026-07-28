@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Expand, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProductIllustration } from "@/components/shop/product/product-illustration";
 import type { ProductWithRelations } from "@/types";
 
 /**
@@ -23,18 +24,12 @@ interface ProductGalleryProps {
 export function ProductGallery({ product }: ProductGalleryProps) {
   const reduceMotion = useReducedMotion();
 
-  const images =
-    product.images.length > 0
-      ? product.images
-      : [
-          {
-            id: "placeholder",
-            url: "/images/placeholder.svg",
-            alt: product.name,
-            order: 0,
-            isMain: true,
-          },
-        ];
+  // Sin fotografías cargadas se dibuja la ilustración de la familia del
+  // producto, en lugar del placeholder gris que era igual para todo el catálogo.
+  const hasImages = product.images.length > 0;
+  const images = hasImages
+    ? product.images
+    : [{ id: "illustration", url: "", alt: product.name, order: 0, isMain: true }];
 
   const [current, setCurrent] = useState(0);
   const [zoomed, setZoomed] = useState(false);
@@ -80,18 +75,30 @@ export function ProductGallery({ product }: ProductGalleryProps) {
             transition={{ duration: reduceMotion ? 0 : 0.25, ease: "easeOut" }}
             className="absolute inset-0"
           >
-            <Image
-              src={activeImage.url}
-              alt={activeImage.alt ?? product.name}
-              fill
-              className="object-contain p-10 sm:p-14"
-              sizes="(max-width: 1024px) 100vw, 50vw"
-              priority
-            />
+            {hasImages ? (
+              <Image
+                src={activeImage.url}
+                alt={activeImage.alt ?? product.name}
+                fill
+                className="object-contain p-10 sm:p-14"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                priority
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center p-10 sm:p-14">
+                <ProductIllustration
+                  productName={product.name}
+                  categorySlug={product.category?.slug}
+                  categoryName={product.category?.name}
+                  label={product.name}
+                />
+              </div>
+            )}
           </motion.div>
         </AnimatePresence>
 
-        {/* Ampliar */}
+        {/* Ampliar: solo tiene sentido con una fotografía real detrás. */}
+        {hasImages && (
         <button
           type="button"
           onClick={() => setZoomed(true)}
@@ -100,6 +107,7 @@ export function ProductGallery({ product }: ProductGalleryProps) {
         >
           <Expand className="h-4 w-4" aria-hidden="true" />
         </button>
+        )}
 
         {total > 1 && (
           <>

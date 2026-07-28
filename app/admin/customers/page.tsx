@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { formatPrice } from "@/lib/utils";
+import { formatMoney, getPricingConfig } from "@/lib/pricing";
 import { formatStoreDate } from "@/lib/dates";
 import { Users, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +57,9 @@ export default async function AdminCustomersPage({
     : [];
   const spendMap = new Map(spendByUser.map((s) => [s.userId, Number(s._sum.total ?? 0)]));
 
+  // Los importes de los pedidos están en la moneda base, no siempre en dólares.
+  const pricing = await getPricingConfig();
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -111,7 +114,7 @@ export default async function AdminCustomersPage({
                 <td className="px-4 py-4 text-sm text-gray-500 hidden md:table-cell">{u.phone ?? "–"}</td>
                 <td className="px-4 py-4 text-sm text-gray-700">{u._count.orders}</td>
                 <td className="px-4 py-4 text-sm font-semibold text-gray-900 hidden sm:table-cell">
-                  {formatPrice(spendMap.get(u.id) ?? 0)}
+                  {formatMoney(spendMap.get(u.id) ?? 0, pricing.baseCurrency)}
                 </td>
                 <td className="px-4 py-4 text-sm text-gray-500 hidden lg:table-cell">
                   {formatStoreDate(u.createdAt)}

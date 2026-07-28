@@ -10,8 +10,29 @@ import { useCurrency } from "@/hooks/use-currency";
 import { ShippingNotice } from "@/components/shop/shipping-notice";
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, subtotal } = useCartStore();
-  const { format: formatPrice, currency, arsSurchargePercent } = useCurrency();
+  const { items, removeItem, updateQuantity } = useCartStore();
+  const { format: formatPrice, convert, currency } = useCurrency();
+
+  /**
+   * Subtotal en la moneda que el visitante está viendo.
+   *
+   * No se puede sumar en moneda base y convertir al final: los productos con
+   * precio en pesos fijado a mano no siguen la cotización, así que el total
+   * tiene que armarse línea por línea con el mismo criterio que se muestra en
+   * cada una. De lo contrario el total no coincidía con la suma visible.
+   */
+  const displayedSubtotal = items.reduce(
+    (sum, item) => sum + convert(item.price, item.priceArs) * item.quantity,
+    0
+  );
+
+  const formatDisplayed = (amount: number) =>
+    new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: currency === "ARS" ? 0 : 2,
+      maximumFractionDigits: currency === "ARS" ? 0 : 2,
+    }).format(amount);
 
   if (items.length === 0) {
     return (
@@ -66,7 +87,9 @@ export default function CartPage() {
                     {item.variantName && (
                       <p className="text-sm text-gray-400 mt-0.5">{item.variantName}</p>
                     )}
-                    <p className="text-brand-blue-mid font-bold mt-1">{formatPrice(item.price)}</p>
+                    <p className="text-brand-blue-mid font-bold mt-1">
+                      {formatPrice(item.price, item.priceArs)}
+                    </p>
 
                     <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
@@ -90,7 +113,7 @@ export default function CartPage() {
 
                       <div className="flex items-center gap-4">
                         <span className="font-bold text-gray-900">
-                          {formatPrice(item.price * item.quantity)}
+                          {formatDisplayed(convert(item.price, item.priceArs) * item.quantity)}
                         </span>
                         <button
                           onClick={() => removeItem(item.id, item.variantId)}
@@ -114,7 +137,7 @@ export default function CartPage() {
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>Subtotal ({items.reduce((s, i) => s + i.quantity, 0)} artículos)</span>
-                  <span>{formatPrice(subtotal())}</span>
+                  <span>{formatDisplayed(displayedSubtotal)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-600">
                   <span>Envío</span>
@@ -124,16 +147,18 @@ export default function CartPage() {
 
               <div className="flex justify-between font-bold text-lg border-t border-gray-100 pt-4 mb-2">
                 <span>Total</span>
-                <span>{formatPrice(subtotal())}</span>
+                <span>{formatDisplayed(displayedSubtotal)}</span>
               </div>
 
-              {/* Transparencia: en pesos el precio mostrado ya trae el recargo. */}
-              {currency === "ARS" && arsSurchargePercent > 0 && (
-                <p className="text-xs text-gray-400 mb-4">
-                  Importe en pesos calculado con la cotización del dólar blue + {arsSurchargePercent}%.
-                  Elegí otro medio de pago en el checkout para ver su total.
-                </p>
-              )}
+              {/*
+                Transparencia: el precio de lista no incluye recargos. El
+                recargo depende del medio de pago y se muestra en el checkout,
+                igual que el envío, que siempre se cobra en pesos.
+              */}
+              <p className="text-xs text-gray-400 mb-4">
+                Los precios no incluyen el envío ni el recargo del medio de pago. Los vas a ver
+                detallados en el checkout antes de confirmar.
+              </p>
 
               <div className="mb-6">
                 <ShippingNotice variant="compact" />

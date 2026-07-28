@@ -15,6 +15,7 @@ import { validateCoupon } from "@/lib/coupons";
 import { quoteShipping } from "@/lib/shipping";
 import {
   computeTotals,
+  computeItemsSubtotalArs,
   getPricingConfig,
   isPaymentOptionKey,
   PAYMENT_OPTIONS,
@@ -173,6 +174,7 @@ export async function createOrder(
         id: true,
         name: true,
         price: true,
+        priceArs: true,
         stock: true,
         isActive: true,
         freeShipping: true,
@@ -194,6 +196,8 @@ export async function createOrder(
       }
 
       let unitPrice = Number(product.price);
+      // Precio fijo en pesos del administrador, si lo hay.
+      let unitPriceArs = product.priceArs != null ? Number(product.priceArs) : null;
       let displayName = product.name;
       let availableStock = product.stock;
 
@@ -203,7 +207,11 @@ export async function createOrder(
           throw new CheckoutError(`La variante elegida de "${product.name}" ya no está disponible.`);
         }
         // La variante puede tener precio propio; si no, hereda el del producto.
-        if (variant.price !== null) unitPrice = Number(variant.price);
+        if (variant.price !== null) {
+          unitPrice = Number(variant.price);
+          // Con precio propio de variante el valor fijo en pesos ya no aplica.
+          unitPriceArs = null;
+        }
         displayName = `${product.name} – ${variant.name}: ${variant.value}`;
         availableStock = variant.stock;
       }
@@ -226,6 +234,7 @@ export async function createOrder(
         name: displayName,
         image: product.images[0]?.url ?? null,
         unitPrice: round2(unitPrice),
+        unitPriceArs,
         quantity: line.quantity,
         subtotal: round2(unitPrice * line.quantity),
       });
@@ -233,13 +242,17 @@ export async function createOrder(
 
     const itemsSubtotal = round2(pricedLines.reduce((s, l) => s + l.subtotal, 0));
 
+    // La configuración y la cotización se resuelven acá porque el valor
+    // declarado del envío ya las necesita.
+    const [config, rate] = await Promise.all([getPricingConfig(), getExchangeRate()]);
+
     // ── 4. Envío: se recotiza en el servidor, siempre en PESOS ─
     // El envío lo cobra un transportista argentino en ARS, así que nunca se
     // convierte a dólares ni se suma al subtotal en moneda base.
     const shippingQuote = await quoteShipping({
       postalCode: shippingParsed.data.postalCode,
       items: pricedLines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
-      declaredValueArs: Math.round(itemsSubtotal * (await getExchangeRate()).rate),
+      declaredValueArs: computeItemsSubtotalArs(pricedLines, config.baseCurrency, rate.rate),
     });
 
     const shippingOption = shippingQuote.options.find((o) => o.id === input.shippingOptionId);
@@ -274,8 +287,6 @@ export async function createOrder(
     }
 
     // ── 6. Totales definitivos ───────────────────────────────
-    const [config, rate] = await Promise.all([getPricingConfig(), getExchangeRate()]);
-
     const totals = await computeTotals({
       lines: pricedLines,
       shippingCostArs,
@@ -404,19 +415,22 @@ export async function createOrder(
         const mpResult = await createCheckoutPreference({
           orderId: order.id,
           orderNumber: order.orderNumber,
-          // Mercado Pago cobra en pesos: la mercadería se convierte con la
-          // cotización, pero el envío YA está en pesos y se manda tal cual.
+          // Mercado Pago cobra en pesos. Todos estos importes ya están en ARS y
+          // salen del mismo cálculo que el resto del pedido.
           totalArs: totals.grandTotalArs,
           items: pricedLines.map((l) => ({
             id: l.productId,
             title: l.name.substring(0, 250),
             quantity: l.quantity,
-            unitPriceArs: Math.round(l.unitPrice * totals.exchangeRate),
+            unitPriceArs:
+              l.unitPriceArs != null && l.unitPriceArs > 0
+                ? Math.round(l.unitPriceArs)
+                : Math.round(l.unitPrice * totals.exchangeRate),
             picture_url: l.image ?? undefined,
           })),
           shippingCostArs: totals.shippingCostArs,
-          discountArs: Math.round(totals.discount * totals.exchangeRate),
-          surchargeArs: Math.round(totals.surchargeAmount * totals.exchangeRate),
+          discountArs: totals.discountArs,
+          surchargeArs: totals.surchargeAmountArs,
           payer: {
             name: shipping.firstName,
             surname: shipping.lastName,

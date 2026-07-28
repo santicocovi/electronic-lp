@@ -2,13 +2,17 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { ProductForm } from "@/components/admin/product-form";
+import { getPricingConfig } from "@/lib/pricing";
+import { getExchangeRate } from "@/lib/currency";
 
 export const metadata = { title: "Nuevo producto | Admin" };
 
 export default async function NewProductPage() {
-  const [categories, brands] = await Promise.all([
+  const [categories, brands, pricing, rate] = await Promise.all([
     db.category.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     db.brand.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    getPricingConfig(),
+    getExchangeRate(),
   ]);
 
   return (
@@ -21,7 +25,12 @@ export default async function NewProductPage() {
         <p className="text-sm text-gray-500 mt-1">Completá los datos para publicar un nuevo producto.</p>
       </div>
 
-      <ProductForm categories={categories} brands={brands} />
+      <ProductForm
+        categories={categories}
+        brands={brands}
+        baseCurrency={pricing.baseCurrency}
+        exchangeRate={rate.rate}
+      />
     </div>
   );
 }

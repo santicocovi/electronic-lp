@@ -140,7 +140,7 @@ Esto crea:
 - Testimonios de ejemplo
 - Configuración general del sitio
 
-⚠️ **Importante:** Después de entrar al panel, cambiá la contraseña del admin.
+**Importante:** después de entrar al panel, cambiá la contraseña del admin.
 
 ---
 

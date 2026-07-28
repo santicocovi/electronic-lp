@@ -17,7 +17,8 @@ interface Props {
 
 const PRODUCT_SELECT = {
   id: true, name: true, slug: true, shortDescription: true, description: true,
-  sku: true, price: true, comparePrice: true, stock: true, isNew: true,
+  sku: true, price: true, comparePrice: true, priceArs: true, comparePriceArs: true,
+  stock: true, isNew: true,
   isOnSale: true, isFeatured: true, freeShipping: true, salesCount: true,
   warranty: true, isActive: true, createdAt: true, internalCode: true, categoryId: true,
   images: { select: { id: true, url: true, alt: true, order: true, isMain: true }, orderBy: { order: "asc" as const } },

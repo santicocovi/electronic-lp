@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { formatMoney } from "@/lib/pricing";
+import { formatMoney, getPricingConfig } from "@/lib/pricing";
 import { formatStoreDate } from "@/lib/dates";
 import { ShoppingBag, Eye, Truck, ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -77,13 +77,16 @@ export default async function AdminOrdersPage({
 
   // El total se resuelve primero para poder acotar la página pedida: así un
   // ?page=9999 manipulado a mano no dispara una consulta con offset inexistente.
-  const [total, revenue] = await Promise.all([
+  const [total, revenue, pricing] = await Promise.all([
     db.order.count({ where }),
     // Facturación de los pedidos efectivamente pagados dentro del filtro.
+    // `total` está en la moneda base de la tienda; `totalArs` es el gran total
+    // en pesos, con envío incluido.
     db.order.aggregate({
       where: { ...where, paymentStatus: "APPROVED" },
-      _sum: { total: true },
+      _sum: { total: true, totalArs: true },
     }),
+    getPricingConfig(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -133,8 +136,14 @@ export default async function AdminOrdersPage({
         <div className="text-right">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Cobrado</p>
           <p className="text-xl font-semibold text-gray-900">
-            {formatMoney(Number(revenue._sum.total ?? 0), "USD")}
+            {formatMoney(Number(revenue._sum.total ?? 0), pricing.baseCurrency)}
           </p>
+          {/* El gran total en pesos incluye el envío, que nunca se convierte. */}
+          {Number(revenue._sum.totalArs ?? 0) > 0 && pricing.baseCurrency !== "ARS" && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              {formatMoney(Number(revenue._sum.totalArs), "ARS")} en pesos, con envío
+            </p>
+          )}
         </div>
       </header>
 

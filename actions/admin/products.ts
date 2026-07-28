@@ -52,6 +52,16 @@ function emptyToNull(value: string | null | undefined): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
+/**
+ * Devuelve un Decimal solo para valores positivos y finitos.
+ * Un campo vacío o un 0 se guardan como null, que es como el motor de precios
+ * expresa "no hay precio fijo, convertilo con la cotización".
+ */
+function positiveOrNull(value: number | null | undefined): Prisma.Decimal | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return new Prisma.Decimal(value);
+}
+
 /** Nivel de alerta de stock, derivado del stock y del umbral configurado. */
 function resolveStockAlert(stock: number, lowStockAlert: number) {
   if (stock <= 0) return "OUT_OF_STOCK" as const;
@@ -105,6 +115,10 @@ async function buildProductData(data: ProductInput) {
     price: new Prisma.Decimal(data.price),
     comparePrice: data.comparePrice != null ? new Prisma.Decimal(data.comparePrice) : null,
     costPrice: data.costPrice != null ? new Prisma.Decimal(data.costPrice) : null,
+    // Precios en pesos: se guardan solo si el administrador cargó un valor
+    // positivo. Un 0 o un campo vacío significan "convertir automáticamente".
+    priceArs: positiveOrNull(data.priceArs),
+    comparePriceArs: positiveOrNull(data.comparePriceArs),
     stock,
     lowStockAlert,
     stockAlert: resolveStockAlert(stock, lowStockAlert),

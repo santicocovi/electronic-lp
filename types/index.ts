@@ -11,8 +11,12 @@ export interface ProductWithRelations {
   shortDescription: string | null;
   description: string | null;
   sku: string | null;
+  /** Precio en la moneda base de la tienda. */
   price: number;
   comparePrice: number | null;
+  /** Precio en pesos fijado por el administrador. null = conversión automática. */
+  priceArs: number | null;
+  comparePriceArs: number | null;
   stock: number;
   warranty: string | null;
   isActive: boolean;
@@ -117,7 +121,6 @@ export interface CategoryWithChildren {
   slug: string;
   description: string | null;
   image: string | null;
-  icon: string | null;
   children: CategoryWithChildren[];
   _count?: { products: number };
 }

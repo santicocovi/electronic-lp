@@ -173,6 +173,12 @@ export interface PricedLine {
   image: string | null;
   /** Precio unitario en moneda base, resuelto contra la base de datos. */
   unitPrice: number;
+  /**
+   * Precio unitario en PESOS fijado por el administrador (`Product.priceArs`).
+   * Si está presente manda sobre la conversión por cotización, tanto en el
+   * catálogo como acá. null = convertir con el dólar del día.
+   */
+  unitPriceArs?: number | null;
   quantity: number;
   subtotal: number;
 }
@@ -183,11 +189,21 @@ export interface OrderTotals {
   /** Moneda en la que se cobra la mercadería, según el medio de pago. */
   chargeCurrency: "USD" | "ARS";
   itemsSubtotal: number;
+  /**
+   * Subtotal de la mercadería en PESOS, armado línea por línea: cada producto
+   * usa su precio fijo en pesos si lo tiene y, si no, la conversión. Es lo que
+   * garantiza que el total del checkout coincida con los precios del catálogo.
+   */
+  itemsSubtotalArs: number;
   discount: number;
+  /** El mismo descuento, expresado en pesos. */
+  discountArs: number;
   /** Base sobre la que se aplica el recargo (items − descuento). Sin envío. */
   netBeforeSurcharge: number;
   surchargePercent: number;
   surchargeAmount: number;
+  /** El recargo del medio de pago, expresado en pesos. */
+  surchargeAmountArs: number;
   /**
    * Total de la MERCADERÍA en moneda base, con recargo incluido.
    * No incluye el envío, que va aparte porque está en otra moneda.
@@ -221,6 +237,34 @@ export interface ComputeTotalsInput {
 }
 
 /**
+ * Precio unitario de una línea expresado en pesos.
+ * Usa el precio fijo del administrador si existe; si no, convierte.
+ */
+function lineUnitPriceArs(
+  line: PricedLine,
+  baseCurrency: "USD" | "ARS",
+  rate: number
+): number {
+  if (baseCurrency === "ARS") return line.unitPrice;
+  if (line.unitPriceArs != null && line.unitPriceArs > 0) return line.unitPriceArs;
+  return line.unitPrice * rate;
+}
+
+/**
+ * Subtotal de la mercadería en pesos, sin descuentos ni recargos.
+ * Se usa, por ejemplo, para declarar el valor asegurado ante el transportista.
+ */
+export function computeItemsSubtotalArs(
+  lines: PricedLine[],
+  baseCurrency: "USD" | "ARS",
+  rate: number
+): number {
+  return roundArs(
+    lines.reduce((sum, l) => sum + lineUnitPriceArs(l, baseCurrency, rate) * l.quantity, 0)
+  );
+}
+
+/**
  * Calcula el total definitivo de un pedido.
  *
  * Separación de monedas (corrige un error real: antes el envío en pesos se
@@ -232,6 +276,12 @@ export interface ComputeTotalsInput {
  *   · El envío queda SIEMPRE en ARS, como importe independiente.
  *   · El recargo del medio de pago se aplica solo sobre la mercadería: el envío
  *     lo cobra un tercero y no corresponde recargarlo.
+ *
+ * Doble contabilidad USD/ARS: el importe en pesos NO se obtiene convirtiendo el
+ * total en dólares al final, sino sumando línea por línea el precio en pesos de
+ * cada producto (fijo si el administrador lo cargó, convertido si no). Sin esto,
+ * un producto con precio en pesos fijado a mano mostraba un número en el
+ * catálogo y otro distinto en el checkout.
  */
 export async function computeTotals(input: ComputeTotalsInput): Promise<OrderTotals> {
   const config = input.config ?? (await getPricingConfig());
@@ -240,34 +290,41 @@ export async function computeTotals(input: ComputeTotalsInput): Promise<OrderTot
 
   const itemsSubtotal = round2(input.lines.reduce((sum, l) => sum + l.subtotal, 0));
 
+  const itemsSubtotalArs = roundArs(
+    input.lines.reduce(
+      (sum, l) => sum + lineUnitPriceArs(l, config.baseCurrency, rate.rate) * l.quantity,
+      0
+    )
+  );
+
   // El envío se normaliza pero no participa de la aritmética en moneda base.
   const shippingCostArs = roundArs(Math.max(0, input.shippingCostArs));
 
   // El descuento aplica sobre la mercadería y nunca la deja en negativo.
   const discount = round2(Math.min(Math.max(0, input.discount), itemsSubtotal));
 
+  // El descuento se traslada a pesos con la misma proporción que representa
+  // sobre la mercadería, así funciona igual con precios fijos y convertidos.
+  const discountRatio = itemsSubtotal > 0 ? discount / itemsSubtotal : 0;
+  const discountArs = roundArs(itemsSubtotalArs * discountRatio);
+
   const netBeforeSurcharge = round2(itemsSubtotal - discount);
+  const netBeforeSurchargeArs = Math.max(0, itemsSubtotalArs - discountArs);
+
   const surchargePercent = config.surcharges[input.paymentOption];
   const surchargeAmount = round2((netBeforeSurcharge * surchargePercent) / 100);
+  const surchargeAmountArs = roundArs((netBeforeSurchargeArs * surchargePercent) / 100);
+
   const total = round2(netBeforeSurcharge + surchargeAmount);
+  const goodsArs = roundArs(netBeforeSurchargeArs + surchargeAmountArs);
 
-  // Conversión de la mercadería a la moneda de cobro.
-  let totalCharged: number;
-  if (option.currency === config.baseCurrency) {
-    totalCharged = option.currency === "ARS" ? roundArs(total) : total;
-  } else if (option.currency === "ARS") {
-    totalCharged = roundArs(total * rate.rate);
-  } else {
-    totalCharged = round2(total / rate.rate);
-  }
-
-  // Gran total en pesos: mercadería en ARS + envío en ARS.
-  const goodsArs =
+  // Importe de la mercadería en la moneda en la que efectivamente se cobra.
+  const totalCharged =
     option.currency === "ARS"
-      ? totalCharged
-      : config.baseCurrency === "ARS"
-        ? roundArs(total)
-        : roundArs(total * rate.rate);
+      ? goodsArs
+      : config.baseCurrency === "USD"
+        ? total
+        : round2(total / rate.rate);
 
   const grandTotalArs = roundArs(goodsArs + shippingCostArs);
 
@@ -275,10 +332,13 @@ export async function computeTotals(input: ComputeTotalsInput): Promise<OrderTot
     baseCurrency: config.baseCurrency,
     chargeCurrency: option.currency,
     itemsSubtotal,
+    itemsSubtotalArs,
     discount,
+    discountArs,
     netBeforeSurcharge,
     surchargePercent,
     surchargeAmount,
+    surchargeAmountArs,
     total,
     totalCharged,
     shippingCostArs,
@@ -289,27 +349,12 @@ export async function computeTotals(input: ComputeTotalsInput): Promise<OrderTot
   };
 }
 
-/** Formatea un importe en pesos. Atajo para los importes de envío. */
-export function formatArs(amount: number): string {
-  return formatMoney(roundArs(amount), "ARS");
-}
-
-// ─── Conversión para mostrar precios en el catálogo ───────────
-
-/**
- * Convierte un precio de catálogo a la moneda que el visitante eligió ver.
- * Es solo presentación: el precio que se cobra sale siempre de computeTotals().
+/*
+ * Se eliminaron `formatArs` y `convertForDisplay`: no los usaba nadie. El
+ * formateo pasa por `formatMoney(amount, "ARS")` y la conversión para mostrar
+ * precios vive en el hook `useCurrency`, que es donde se conoce la moneda
+ * elegida por el visitante y el precio fijo en pesos de cada producto.
  */
-export function convertForDisplay(
-  amount: number,
-  from: "USD" | "ARS",
-  to: "USD" | "ARS",
-  rate: number
-): number {
-  if (from === to) return to === "ARS" ? roundArs(amount) : round2(amount);
-  if (to === "ARS") return roundArs(amount * rate);
-  return round2(amount / rate);
-}
 
 /** Formatea un importe en la moneda indicada, con el locale argentino. */
 export function formatMoney(amount: number, currency: "USD" | "ARS"): string {

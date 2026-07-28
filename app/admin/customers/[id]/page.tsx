@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Mail, Phone, MapPin, ShoppingBag } from "lucide-react";
 import { db } from "@/lib/db";
-import { formatPrice } from "@/lib/utils";
+import { formatMoney, getPricingConfig } from "@/lib/pricing";
 import { formatStoreDate } from "@/lib/dates";
 import { Badge } from "@/components/ui/badge";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/order-status";
@@ -18,7 +18,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default async function AdminCustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [user, spend] = await Promise.all([
+  const [user, spend, pricing] = await Promise.all([
     db.user.findUnique({
       where: { id },
       include: {
@@ -26,7 +26,7 @@ export default async function AdminCustomerDetailPage({ params }: { params: Prom
         orders: {
           orderBy: { createdAt: "desc" },
           select: {
-            id: true, orderNumber: true, status: true, total: true, createdAt: true,
+            id: true, orderNumber: true, status: true, total: true, currency: true, createdAt: true,
             _count: { select: { items: true } },
           },
         },
@@ -36,11 +36,15 @@ export default async function AdminCustomerDetailPage({ params }: { params: Prom
       where: { userId: id, paymentStatus: "APPROVED" },
       _sum: { total: true },
     }),
+    getPricingConfig(),
   ]);
 
   if (!user) notFound();
 
   const totalSpent = Number(spend._sum.total ?? 0);
+
+  // Los importes de los pedidos están en la moneda base de la tienda.
+  const fmt = (value: number) => formatMoney(value, pricing.baseCurrency);
 
   return (
     <div className="space-y-6">
@@ -67,13 +71,13 @@ export default async function AdminCustomerDetailPage({ params }: { params: Prom
         </div>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <p className="text-sm text-gray-500 font-medium">Total gastado</p>
-          <p className="text-2xl font-bold text-gray-900 mt-2">{formatPrice(totalSpent)}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-2">{fmt(totalSpent)}</p>
           <p className="text-xs text-gray-400 mt-1">Solo pagos aprobados</p>
         </div>
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <p className="text-sm text-gray-500 font-medium">Ticket promedio</p>
           <p className="text-2xl font-bold text-gray-900 mt-2">
-            {formatPrice(user.orders.length ? Math.round(totalSpent / user.orders.length) : 0)}
+            {fmt(user.orders.length ? Math.round(totalSpent / user.orders.length) : 0)}
           </p>
         </div>
       </div>
@@ -104,7 +108,9 @@ export default async function AdminCustomerDetailPage({ params }: { params: Prom
                   <span className={`text-xs px-2 py-1 rounded-full font-medium whitespace-nowrap ${ORDER_STATUS_COLORS[o.status] ?? "bg-gray-100 text-gray-600"}`}>
                     {ORDER_STATUS_LABELS[o.status] ?? o.status}
                   </span>
-                  <p className="text-sm font-semibold text-gray-900 flex-shrink-0">{formatPrice(Number(o.total))}</p>
+                  <p className="text-sm font-semibold text-gray-900 flex-shrink-0">
+                    {formatMoney(Number(o.total), o.currency === "ARS" ? "ARS" : "USD")}
+                  </p>
                 </Link>
               ))}
             </div>

@@ -5,23 +5,15 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Formatea un importe en la moneda base de la tienda.
+/*
+ * `formatPrice` se eliminó a propósito.
  *
- * El default era "ARS", pero los precios de catálogo están en dólares, así que
- * todo el sitio mostraba "$ 1.200" para un producto de USD 1.200. Ahora el
- * default es USD, que es la moneda base real (ver el ajuste `base_currency`).
- * Para convertir a pesos se usa `convertForDisplay` de lib/pricing.
+ * Tenía una moneda por defecto fija, así que cualquier llamada que olvidara
+ * pasarla mostraba dólares aunque el importe estuviera en pesos —de ahí venían
+ * las inconsistencias de moneda del panel y del historial de pedidos—. El único
+ * formateador de dinero es ahora `formatMoney(amount, currency)` de
+ * lib/pricing, que exige declarar la moneda de forma explícita.
  */
-export function formatPrice(price: number, currency = "USD"): string {
-  const isArs = currency === "ARS"
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: isArs ? 0 : 2,
-    maximumFractionDigits: isArs ? 0 : 2,
-  }).format(price)
-}
 
 export function calculateDiscount(originalPrice: number | null | undefined, salePrice: number): number {
   if (!originalPrice || originalPrice <= 0 || !salePrice) return 0
@@ -40,11 +32,13 @@ export function slugify(text: string): string {
     .trim()
 }
 
-export function generateOrderNumber(): string {
-  const timestamp = Date.now().toString(36).toUpperCase()
-  const random = Math.random().toString(36).substring(2, 6).toUpperCase()
-  return `ELP-${timestamp}-${random}`
-}
+/*
+ * Se eliminaron `generateOrderNumber`, `getStockLabel`, `truncate` y
+ * `absoluteUrl`: no los importaba nadie. El número de pedido lo genera
+ * `buildOrderNumber` en actions/orders (con alfabeto sin caracteres ambiguos y
+ * reintento ante colisión), el estado de stock lo arma la ficha de producto, y
+ * los recortes de texto se hacen con las utilidades de Tailwind.
+ */
 
 export function getProductWhatsAppUrl(
   productName: string,
@@ -69,22 +63,7 @@ export function getShareWhatsAppUrl(
   return `https://wa.me/?text=${message}`
 }
 
-export function getStockLabel(stock: number): { label: string; color: string } {
-  if (stock <= 0) return { label: "Sin stock", color: "text-red-500" }
-  if (stock <= 5) return { label: `Últimas ${stock} unidades`, color: "text-orange-500" }
-  return { label: "En stock", color: "text-green-500" }
-}
-
-export function truncate(str: string, length: number): string {
-  if (str.length <= length) return str
-  return str.slice(0, length) + "..."
-}
-
 export function getAppUrl(): string {
   const raw = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
   return /^https?:\/\//.test(raw) ? raw.replace(/\/$/, "") : `https://${raw.replace(/\/$/, "")}`
-}
-
-export function absoluteUrl(path: string): string {
-  return `${getAppUrl()}${path}`
 }

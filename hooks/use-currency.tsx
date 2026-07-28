@@ -9,6 +9,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
  * Este contexto solo cambia en qué moneda los *ve* el visitante; el importe que
  * se cobra lo decide siempre el servidor en el checkout.
  *
+ * Precio en pesos: si el producto tiene `priceArs` cargado por el
+ * administrador, ese valor manda; si no, se convierte con la cotización.
+ *
+ * El precio mostrado NO incluye recargos por medio de pago. Antes se le sumaba
+ * el recargo del efectivo en pesos (10%), con lo que el catálogo mostraba un
+ * número más alto que el que después aparecía en el checkout para Mercado Pago
+ * o transferencia: la lista de precios y el checkout no coincidían nunca. Ahora
+ * el precio de lista es uno solo y el recargo aparece explícito, como una línea
+ * aparte, al elegir el medio de pago.
+ *
  * La cotización llega desde un Server Component (no se consulta la API desde el
  * navegador) y la preferencia se guarda en localStorage.
  */
@@ -25,12 +35,19 @@ interface CurrencyContextValue {
   baseCurrency: DisplayCurrency;
   /** Pesos por dólar. */
   rate: number;
-  /** Recargo aplicado al pagar en pesos, para mostrarlo con transparencia. */
+  /**
+   * Recargo del efectivo en pesos. Ya NO se suma al precio mostrado; se expone
+   * solo para poder explicarlo en pantalla.
+   */
   arsSurchargePercent: number;
-  /** Convierte un precio base a la moneda elegida y lo formatea. */
-  format: (baseAmount: number) => string;
+  /**
+   * Convierte un precio base a la moneda elegida y lo formatea.
+   * `arsOverride` es el precio en pesos fijado por el administrador: cuando
+   * existe, se muestra tal cual en lugar de la conversión.
+   */
+  format: (baseAmount: number, arsOverride?: number | null) => string;
   /** Convierte sin formatear, por si hace falta el número. */
-  convert: (baseAmount: number) => number;
+  convert: (baseAmount: number, arsOverride?: number | null) => number;
 }
 
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
@@ -71,18 +88,26 @@ export function CurrencyProvider({
   }, []);
 
   const value = useMemo<CurrencyContextValue>(() => {
-    function convert(baseAmount: number): number {
-      if (currency === baseCurrency) return baseAmount;
-      if (currency === "ARS") {
-        // Se refleja el recargo real de pagar en pesos, para que el precio
-        // mostrado no sea menor al que después aparece en el checkout.
-        return Math.round(baseAmount * (1 + arsSurchargePercent / 100) * rate);
+    function convert(baseAmount: number, arsOverride?: number | null): number {
+      // El precio en pesos cargado a mano manda sobre cualquier conversión.
+      // Si la moneda base ya es ARS, `baseAmount` es el precio en pesos y el
+      // override no corresponde.
+      if (
+        currency === "ARS" &&
+        baseCurrency !== "ARS" &&
+        arsOverride != null &&
+        arsOverride > 0
+      ) {
+        return Math.round(arsOverride);
       }
+
+      if (currency === baseCurrency) return baseAmount;
+      if (currency === "ARS") return Math.round(baseAmount * rate);
       return Math.round((baseAmount / rate) * 100) / 100;
     }
 
-    function format(baseAmount: number): string {
-      const amount = convert(baseAmount);
+    function format(baseAmount: number, arsOverride?: number | null): string {
+      const amount = convert(baseAmount, arsOverride);
       return new Intl.NumberFormat("es-AR", {
         style: "currency",
         currency,
@@ -123,8 +148,8 @@ export function useCurrency(): CurrencyContextValue {
     baseCurrency: "USD",
     rate: 1,
     arsSurchargePercent: 0,
-    convert: (amount) => amount,
-    format: (amount) =>
+    convert: (amount: number) => amount,
+    format: (amount: number) =>
       new Intl.NumberFormat("es-AR", {
         style: "currency",
         currency: "USD",
