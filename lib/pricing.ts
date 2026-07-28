@@ -178,21 +178,33 @@ export interface PricedLine {
 }
 
 export interface OrderTotals {
-  /** Moneda de los importes base (`items`, `subtotal`, `discount`, `total`). */
+  /** Moneda de los importes de mercadería (`itemsSubtotal`, `discount`, `total`). */
   baseCurrency: "USD" | "ARS";
-  /** Moneda en la que se cobra realmente, según el medio de pago. */
+  /** Moneda en la que se cobra la mercadería, según el medio de pago. */
   chargeCurrency: "USD" | "ARS";
   itemsSubtotal: number;
-  shippingCost: number;
   discount: number;
-  /** Base sobre la que se aplica el recargo (items + envío − descuento). */
+  /** Base sobre la que se aplica el recargo (items − descuento). Sin envío. */
   netBeforeSurcharge: number;
   surchargePercent: number;
   surchargeAmount: number;
-  /** Total en moneda base, con recargo incluido. */
+  /**
+   * Total de la MERCADERÍA en moneda base, con recargo incluido.
+   * No incluye el envío, que va aparte porque está en otra moneda.
+   */
   total: number;
-  /** Total en la moneda de cobro. Si chargeCurrency es ARS, va convertido. */
+  /** Total de la mercadería en la moneda de cobro del medio elegido. */
   totalCharged: number;
+  /**
+   * Costo del envío en PESOS ARGENTINOS. Nunca se convierte a dólares ni se
+   * suma a `total`: los transportistas argentinos facturan en ARS.
+   */
+  shippingCostArs: number;
+  /**
+   * Gran total en pesos: mercadería convertida a ARS + envío.
+   * Es lo que se cobra cuando el medio de pago opera en pesos.
+   */
+  grandTotalArs: number;
   exchangeRate: number;
   rateSource: ExchangeRate["source"];
   rateUpdatedAt: Date;
@@ -200,7 +212,8 @@ export interface OrderTotals {
 
 export interface ComputeTotalsInput {
   lines: PricedLine[];
-  shippingCost: number;
+  /** Costo del envío en PESOS ARGENTINOS. */
+  shippingCostArs: number;
   discount: number;
   paymentOption: PaymentOptionKey;
   config?: PricingConfig;
@@ -210,8 +223,15 @@ export interface ComputeTotalsInput {
 /**
  * Calcula el total definitivo de un pedido.
  *
- * El recargo del medio de pago se aplica sobre (items + envío − descuento),
- * no solo sobre los items: el recargo cubre el costo de cobrar el total.
+ * Separación de monedas (corrige un error real: antes el envío en pesos se
+ * sumaba al subtotal en dólares, produciendo totales sin sentido como
+ * 1200 USD + 4500 ARS = 5700):
+ *
+ *   · La mercadería se expresa en la moneda base (USD) y se convierte a la
+ *     moneda del medio de pago elegido.
+ *   · El envío queda SIEMPRE en ARS, como importe independiente.
+ *   · El recargo del medio de pago se aplica solo sobre la mercadería: el envío
+ *     lo cobra un tercero y no corresponde recargarlo.
  */
 export async function computeTotals(input: ComputeTotalsInput): Promise<OrderTotals> {
   const config = input.config ?? (await getPricingConfig());
@@ -219,41 +239,59 @@ export async function computeTotals(input: ComputeTotalsInput): Promise<OrderTot
   const option = PAYMENT_OPTIONS[input.paymentOption];
 
   const itemsSubtotal = round2(input.lines.reduce((sum, l) => sum + l.subtotal, 0));
-  const shippingCost = round2(Math.max(0, input.shippingCost));
 
-  // El descuento nunca puede superar items + envío (evita totales negativos).
-  const discount = round2(Math.min(Math.max(0, input.discount), itemsSubtotal + shippingCost));
+  // El envío se normaliza pero no participa de la aritmética en moneda base.
+  const shippingCostArs = roundArs(Math.max(0, input.shippingCostArs));
 
-  const netBeforeSurcharge = round2(itemsSubtotal + shippingCost - discount);
+  // El descuento aplica sobre la mercadería y nunca la deja en negativo.
+  const discount = round2(Math.min(Math.max(0, input.discount), itemsSubtotal));
+
+  const netBeforeSurcharge = round2(itemsSubtotal - discount);
   const surchargePercent = config.surcharges[input.paymentOption];
   const surchargeAmount = round2((netBeforeSurcharge * surchargePercent) / 100);
   const total = round2(netBeforeSurcharge + surchargeAmount);
 
-  // Conversión a la moneda de cobro.
+  // Conversión de la mercadería a la moneda de cobro.
   let totalCharged: number;
   if (option.currency === config.baseCurrency) {
-    totalCharged = total;
+    totalCharged = option.currency === "ARS" ? roundArs(total) : total;
   } else if (option.currency === "ARS") {
     totalCharged = roundArs(total * rate.rate);
   } else {
     totalCharged = round2(total / rate.rate);
   }
 
+  // Gran total en pesos: mercadería en ARS + envío en ARS.
+  const goodsArs =
+    option.currency === "ARS"
+      ? totalCharged
+      : config.baseCurrency === "ARS"
+        ? roundArs(total)
+        : roundArs(total * rate.rate);
+
+  const grandTotalArs = roundArs(goodsArs + shippingCostArs);
+
   return {
     baseCurrency: config.baseCurrency,
     chargeCurrency: option.currency,
     itemsSubtotal,
-    shippingCost,
     discount,
     netBeforeSurcharge,
     surchargePercent,
     surchargeAmount,
     total,
     totalCharged,
+    shippingCostArs,
+    grandTotalArs,
     exchangeRate: rate.rate,
     rateSource: rate.source,
     rateUpdatedAt: rate.updatedAt,
   };
+}
+
+/** Formatea un importe en pesos. Atajo para los importes de envío. */
+export function formatArs(amount: number): string {
+  return formatMoney(roundArs(amount), "ARS");
 }
 
 // ─── Conversión para mostrar precios en el catálogo ───────────

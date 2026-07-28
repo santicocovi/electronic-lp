@@ -4,6 +4,7 @@ import { ArrowLeft, Package, MapPin, Truck } from "lucide-react";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { formatPrice } from "@/lib/utils";
+import { formatMoney } from "@/lib/pricing";
 import { formatStoreDateTime } from "@/lib/dates";
 import {
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
@@ -82,12 +83,8 @@ export default async function ProfileOrderDetailPage({ params }: { params: Promi
 
         <div className="border-t border-gray-100 px-5 py-4 space-y-2 bg-gray-50/50">
           <div className="flex justify-between text-sm text-gray-600">
-            <span>Subtotal</span>
+            <span>Productos</span>
             <span>{formatPrice(Number(order.subtotal))}</span>
-          </div>
-          <div className="flex justify-between text-sm text-gray-600">
-            <span>Envío{order.shippingMethod ? ` (${order.shippingMethod})` : ""}</span>
-            <span>{Number(order.shippingCost) === 0 ? "Gratis" : formatPrice(Number(order.shippingCost))}</span>
           </div>
           {Number(order.discount) > 0 && (
             <div className="flex justify-between text-sm text-green-600">
@@ -95,10 +92,25 @@ export default async function ProfileOrderDetailPage({ params }: { params: Promi
               <span>-{formatPrice(Number(order.discount))}</span>
             </div>
           )}
+          {/* El envío se cobra siempre en pesos y no se convierte a dólares. */}
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Envío{order.shippingMethod ? ` (${order.shippingMethod})` : ""}</span>
+            <span>
+              {Number(order.shippingCost) === 0
+                ? "Sin cargo"
+                : formatMoney(Number(order.shippingCost), "ARS")}
+            </span>
+          </div>
           <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-200">
-            <span>Total</span>
+            <span>Mercadería</span>
             <span>{formatPrice(Number(order.total))}</span>
           </div>
+          {order.totalArs !== null && (
+            <div className="flex justify-between text-sm font-semibold text-gray-700">
+              <span>Total en pesos (con envío)</span>
+              <span>{formatMoney(Number(order.totalArs), "ARS")}</span>
+            </div>
+          )}
         </div>
       </div>
 

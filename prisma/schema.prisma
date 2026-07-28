@@ -342,26 +342,37 @@ model WishlistItem {
 // ─── ORDERS ─────────────────────────────────────────────────
 
 model Order {
-  id              String        @id @default(cuid())
-  userId          String
-  addressId       String?
-  orderNumber     String        @unique
-  status          OrderStatus   @default(PENDING)
-  paymentStatus   PaymentStatus @default(PENDING)
-  paymentMethod   PaymentMethod @default(MERCADOPAGO)
-  paymentId       String? // MercadoPago payment ID
-  preferenceId    String? // MercadoPago preference ID
-  subtotal        Decimal       @db.Decimal(10, 2)
-  shippingCost    Decimal       @default(0) @db.Decimal(10, 2)
-  discount        Decimal       @default(0) @db.Decimal(10, 2)
-  total           Decimal       @db.Decimal(10, 2)
-  couponId        String?
-  couponCode      String?
-  notes           String?       @db.Text
-  trackingNumber  String?
-  shippingMethod  String?
-  shippingCarrier String? // Empresa de envío (Andreani, OCA, Correo Argentino, propio…)
-  trackingUrl     String? // Link de seguimiento del transportista
+  id               String        @id @default(cuid())
+  userId           String
+  addressId        String?
+  orderNumber      String        @unique
+  status           OrderStatus   @default(PENDING)
+  paymentStatus    PaymentStatus @default(PENDING)
+  paymentMethod    PaymentMethod @default(MERCADOPAGO)
+  paymentId        String? // MercadoPago payment ID
+  preferenceId     String? // MercadoPago preference ID
+  subtotal         Decimal       @db.Decimal(10, 2)
+  /// SIEMPRE en pesos argentinos, sin importar `currency`.
+  /// El envío lo cobra un transportista argentino en ARS, así que nunca se
+  /// convierte a dólares ni se suma al subtotal en moneda base: se mantiene
+  /// como importe independiente. Los valores históricos ya estaban en ARS.
+  shippingCost     Decimal       @default(0) @db.Decimal(10, 2)
+  discount         Decimal       @default(0) @db.Decimal(10, 2)
+  /// Importe en `currency` por los productos + recargo del medio de pago.
+  /// NO incluye el envío, que va aparte en ARS (ver `shippingCost`).
+  /// El gran total en pesos está en `totalArs`.
+  total            Decimal       @db.Decimal(10, 2)
+  couponId         String?
+  couponCode       String?
+  notes            String?       @db.Text
+  trackingNumber   String?
+  shippingMethod   String?
+  shippingCarrier  String? // Empresa de envío (Andreani, OCA, Correo Argentino, propio…)
+  trackingUrl      String? // Link de seguimiento del transportista
+  /// Proveedor que cotizó el envío: "andreani", "correo-argentino", "table"…
+  shippingProvider String?
+  /// Código postal con el que se cotizó, para poder auditar la tarifa aplicada.
+  shippingQuotedCp String?
 
   // ── Moneda y recargos ──
   // `subtotal`, `discount`, `shippingCost` y `total` quedan expresados en

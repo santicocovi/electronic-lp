@@ -16,6 +16,8 @@ export interface HeroCategory {
 
 interface HeroProps {
   videoUrl: string;
+  /** Primer fotograma. Se pinta al instante y evita el hueco negro inicial. */
+  posterUrl?: string | null;
   title: string;
   subtitle: string;
   cta: string;
@@ -27,7 +29,14 @@ interface HeroProps {
   categories?: HeroCategory[];
 }
 
-export function Hero({ videoUrl, title, subtitle, cta, categories = [] }: HeroProps) {
+export function Hero({
+  videoUrl,
+  posterUrl,
+  title,
+  subtitle,
+  cta,
+  categories = [],
+}: HeroProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Se limita a 6 para no saturar el hero en pantallas chicas.
@@ -45,14 +54,22 @@ export function Hero({ videoUrl, title, subtitle, cta, categories = [] }: HeroPr
       <div className="absolute inset-0">
         <video
           ref={videoRef}
+          key={videoUrl}
           className="w-full h-full object-cover"
+          poster={posterUrl ?? undefined}
           autoPlay
           muted
           loop
           playsInline
-          preload="auto"
+          /**
+           * `metadata` en lugar de `auto`: con `auto` el navegador descargaba
+           * el video completo antes de pintar nada, castigando el LCP. Con el
+           * póster el hero se ve al instante y el video entra cuando puede.
+           */
+          preload="metadata"
           disablePictureInPicture
           controlsList="nodownload nofullscreen noremoteplayback"
+          aria-hidden="true"
         >
           <source src={videoUrl} type="video/mp4" />
         </video>

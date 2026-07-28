@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,10 +98,21 @@ export default function AdminSettingsPage() {
                 <Label>Texto del botón CTA</Label>
                 <Input {...register("heroCta")} className="mt-1 rounded-xl" />
               </div>
-              <div>
-                <Label>URL del video Hero (ej: /videos/hero.mp4)</Label>
-                <Input {...register("heroVideoUrl")} className="mt-1 rounded-xl" />
-                <p className="text-xs text-gray-400 mt-1">Subí el video a la carpeta /public/videos/ del proyecto</p>
+              {/* El video ya no se carga pegando una ruta a mano: se sube desde
+                  su propia pantalla, que además genera el póster y lo optimiza. */}
+              <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+                <p className="text-sm font-medium text-gray-900">Video de la portada</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Ahora se administra desde su propia sección, con subida de archivo, vista previa
+                  y optimización automática.
+                </p>
+                <Link
+                  href="/admin/settings/hero"
+                  className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue-mid hover:underline"
+                >
+                  <Film className="w-4 h-4" aria-hidden="true" />
+                  Ir a Video de portada
+                </Link>
               </div>
             </div>
           </TabsContent>

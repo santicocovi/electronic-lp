@@ -12,6 +12,7 @@ import { TestimonialsSection } from "@/components/shop/home/testimonials-section
 import { FAQSection } from "@/components/shop/home/faq-section";
 import { NewsletterSection } from "@/components/shop/home/newsletter-section";
 import { ShippingNotice } from "@/components/shop/shipping-notice";
+import { getHeroVideo } from "@/actions/admin/hero-video";
 import type { CategoryWithChildren } from "@/types";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -41,9 +42,11 @@ const PRODUCT_SELECT = {
 
 
 export default async function HomePage() {
-  const [settings, categories, featured, newProducts, onSale, testimonials, faqs, brands] =
+  const [settings, heroVideo, categories, featured, newProducts, onSale, testimonials, faqs, brands] =
     await Promise.all([
       getSiteSettings(),
+      // El video del hero se administra desde el panel; incluye su póster.
+      getHeroVideo(),
       db.category.findMany({
         where: { isActive: true, parentId: null },
         orderBy: { order: "asc" },
@@ -92,7 +95,8 @@ export default async function HomePage() {
   return (
     <>
       <Hero
-        videoUrl={settings.heroVideoUrl}
+        videoUrl={heroVideo.url}
+        posterUrl={heroVideo.posterUrl}
         title={settings.heroTitle}
         subtitle={settings.heroSubtitle}
         cta={settings.heroCta}

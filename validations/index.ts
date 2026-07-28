@@ -99,7 +99,10 @@ export const checkoutSchema = z.object({
   postalCode: z.string().min(4, "El código postal es requerido"),
   notes: z.string().optional(),
   couponCode: z.string().optional(),
-  shippingMethodId: z.string().min(1, "El método de envío es requerido"),
+  // El envío ya no se elige por id de ShippingMethod: se cotiza contra el
+  // código postal y la opción se maneja aparte (ver `shippingOptionId` en el
+  // checkout). Se conserva opcional para no romper llamadas existentes.
+  shippingMethodId: z.string().optional(),
 });
 
 // ─── CONTACT ─────────────────────────────────────────────────

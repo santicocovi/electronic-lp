@@ -16,6 +16,7 @@ import {
   CreditCard,
   Coins,
   Wallet,
+  PackageCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,14 +25,21 @@ import { useCartStore } from "@/hooks/use-cart";
 import { checkoutSchema, type CheckoutInput } from "@/validations";
 import { createOrder } from "@/actions/orders";
 import { getCheckoutQuote, type CheckoutQuote } from "@/actions/checkout";
-import type { ShippingMethod, Address } from "@prisma/client";
+import type { Address } from "@prisma/client";
 import { toast } from "@/hooks/use-toast";
 import { ShippingNotice } from "@/components/shop/shipping-notice";
+
+/**
+ * Formulario de checkout.
+ *
+ * Separación de monedas: la mercadería se muestra en la moneda base (USD) y el
+ * envío SIEMPRE en pesos, como importe independiente. El envío se cotiza en el
+ * servidor contra el código postal que escribe el cliente.
+ */
 
 interface CheckoutFormProps {
   userEmail: string;
   userName: string;
-  shippingMethods: ShippingMethod[];
   defaultAddress: Address | null;
 }
 
@@ -44,17 +52,21 @@ const PAYMENT_ICONS: Record<string, typeof Banknote> = {
   USDT: Wallet,
 };
 
-export function CheckoutForm({
-  userEmail,
-  userName,
-  shippingMethods,
-  defaultAddress,
-}: CheckoutFormProps) {
+/** Formatea pesos. El envío nunca cambia de moneda. */
+const formatArs = (value: number) =>
+  new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0,
+  }).format(value);
+
+export function CheckoutForm({ userEmail, userName, defaultAddress }: CheckoutFormProps) {
   const { items, clearCart } = useCartStore();
 
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [paymentOption, setPaymentOption] = useState<string>("MERCADOPAGO");
+  const [shippingOptionId, setShippingOptionId] = useState<string | null>(null);
   const [quote, setQuote] = useState<CheckoutQuote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [loadingQuote, startQuote] = useTransition();
@@ -80,23 +92,33 @@ export function CheckoutForm({
       province: defaultAddress?.province ?? "",
       postalCode: defaultAddress?.postalCode ?? "",
       phone: defaultAddress?.phone ?? "",
-      shippingMethodId: shippingMethods[0]?.id ?? "",
     },
   });
 
-  const selectedShippingId = watch("shippingMethodId");
+  const postalCode = watch("postalCode");
 
   // Firma del carrito: evita recotizar cuando el array se recrea sin cambios.
   const cartSignature = items
     .map((i) => `${i.id}:${i.variantId ?? ""}:${i.quantity}`)
     .join("|");
 
+  // Se mantienen en refs para que `requestQuote` no se recree con cada tecla.
+  const couponRef = useRef(appliedCoupon);
+  couponRef.current = appliedCoupon;
+  const shippingRef = useRef(shippingOptionId);
+  shippingRef.current = shippingOptionId;
+
   const requestQuote = useCallback(
-    (coupon: string | null) => {
+    (overrides?: { coupon?: string | null; shippingId?: string | null; cp?: string }) => {
       if (items.length === 0) {
         setQuote(null);
         return;
       }
+
+      const coupon = overrides?.coupon !== undefined ? overrides.coupon : couponRef.current;
+      const shippingId =
+        overrides?.shippingId !== undefined ? overrides.shippingId : shippingRef.current;
+      const cp = overrides?.cp !== undefined ? overrides.cp : postalCode;
 
       startQuote(async () => {
         const result = await getCheckoutQuote({
@@ -105,14 +127,18 @@ export function CheckoutForm({
             variantId: i.variantId ?? null,
             quantity: i.quantity,
           })),
-          shippingMethodId: selectedShippingId,
+          postalCode: cp,
+          shippingOptionId: shippingId ?? undefined,
           couponCode: coupon ?? undefined,
         });
 
         if (result.success && result.data) {
           setQuote(result.data);
           setQuoteError(null);
-          // El cupón puede haber dejado de ser válido entre recargas.
+          // El servidor decide qué envío queda seleccionado: puede haber
+          // descartado el elegido si el CP cambió.
+          setShippingOptionId(result.data.selectedShippingId);
+
           if (result.data.couponError) {
             setAppliedCoupon(null);
             toast.add({ title: result.data.couponError, type: "error" });
@@ -123,36 +149,45 @@ export function CheckoutForm({
         }
       });
     },
-    // `items` se lee dentro; la firma es lo que determina si hay que recotizar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cartSignature, selectedShippingId]
+    [cartSignature, postalCode]
   );
 
-  // Recotiza cuando cambia el carrito o el método de envío.
-  const appliedCouponRef = useRef(appliedCoupon);
-  appliedCouponRef.current = appliedCoupon;
-
+  // Recotiza al cambiar el carrito o el código postal (con retardo, para no
+  // consultar al transportista con cada tecla).
   useEffect(() => {
-    requestQuote(appliedCouponRef.current);
+    const timer = setTimeout(() => requestQuote(), 500);
+    return () => clearTimeout(timer);
   }, [requestQuote]);
 
   function applyCoupon() {
     const code = couponInput.trim().toUpperCase();
     if (!code) return;
     setAppliedCoupon(code);
-    requestQuote(code);
+    requestQuote({ coupon: code });
   }
 
   function removeCoupon() {
     setAppliedCoupon(null);
     setCouponInput("");
-    requestQuote(null);
+    requestQuote({ coupon: null });
+  }
+
+  function selectShipping(id: string) {
+    setShippingOptionId(id);
+    requestQuote({ shippingId: id });
   }
 
   const selectedOption = quote?.options.find((o) => o.key === paymentOption);
+  const selectedShipping = quote?.shippingOptions.find((o) => o.id === shippingOptionId);
 
   async function onSubmit(data: CheckoutInput) {
     if (items.length === 0 || !quote) return;
+
+    if (!shippingOptionId) {
+      toast.add({ title: "Elegí una opción de envío", type: "error" });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -174,7 +209,7 @@ export function CheckoutForm({
           province: data.province,
           postalCode: data.postalCode,
         },
-        shippingMethodId: data.shippingMethodId,
+        shippingOptionId,
         paymentOption: paymentOption as never,
         couponCode: appliedCoupon ?? undefined,
         notes: data.notes,
@@ -182,8 +217,8 @@ export function CheckoutForm({
 
       if (!result.success) {
         toast.add({ title: "No pudimos procesar el pedido", description: result.error, type: "error" });
-        // El stock pudo haber cambiado: se recotiza para reflejarlo.
-        requestQuote(appliedCoupon);
+        // El stock o la tarifa pudieron cambiar: se recotiza.
+        requestQuote();
         return;
       }
 
@@ -199,6 +234,7 @@ export function CheckoutForm({
     }
   }
 
+  /** Formatea importes de mercadería en la moneda base. */
   const fmtBase = (value: number) =>
     new Intl.NumberFormat("es-AR", {
       style: "currency",
@@ -288,7 +324,18 @@ export function CheckoutForm({
               </div>
               <div>
                 <Label htmlFor="postalCode">Código postal *</Label>
-                <Input id="postalCode" {...register("postalCode")} className="mt-1 rounded-xl" autoComplete="postal-code" />
+                <Input
+                  id="postalCode"
+                  {...register("postalCode")}
+                  className="mt-1 rounded-xl"
+                  autoComplete="postal-code"
+                  inputMode="numeric"
+                  placeholder="1900"
+                  aria-describedby="postal-help"
+                />
+                <p id="postal-help" className="text-xs text-gray-400 mt-1">
+                  Con este dato calculamos el costo del envío.
+                </p>
                 {errors.postalCode && <p className="text-red-500 text-xs mt-1">{errors.postalCode.message}</p>}
               </div>
               <div className="col-span-2">
@@ -304,27 +351,72 @@ export function CheckoutForm({
 
           {/* 3. Envío */}
           <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h2 className="font-semibold text-lg text-gray-900 mb-5 flex items-center gap-2">
+            <h2 className="font-semibold text-lg text-gray-900 mb-2 flex items-center gap-2">
               <span className="w-7 h-7 rounded-full bg-brand-blue-mid text-white text-sm flex items-center justify-center font-bold">3</span>
-              <Truck className="w-4 h-4" aria-hidden="true" /> Método de envío
+              <Truck className="w-4 h-4" aria-hidden="true" /> Envío
             </h2>
+            <p className="text-sm text-gray-500 mb-5">
+              El costo del envío se cobra siempre en pesos argentinos, aparte del precio del
+              producto.
+            </p>
+
+            {quote?.isLocalDelivery && (
+              <div className="mb-4 flex gap-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                <PackageCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
+                <p className="text-sm text-emerald-900">
+                  Tu código postal está dentro de nuestra zona de reparto: la entrega es{" "}
+                  <strong>sin cargo y en el día</strong>.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-3">
-              {shippingMethods.map((method) => (
-                <label
-                  key={method.id}
-                  className="flex items-start gap-4 p-4 border-2 border-gray-100 rounded-xl cursor-pointer transition-colors has-[:checked]:border-brand-blue-mid has-[:checked]:bg-brand-blue-subtle"
-                >
-                  <input type="radio" {...register("shippingMethodId")} value={method.id} className="mt-1 accent-brand-blue-mid" />
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900">{method.name}</p>
-                    {method.description && <p className="text-sm text-gray-500">{method.description}</p>}
-                    {method.estimatedDays && <p className="text-xs text-gray-400 mt-1">Estimado: {method.estimatedDays}</p>}
-                  </div>
-                  <span className="font-semibold whitespace-nowrap">
-                    {Number(method.price) === 0 ? "Gratis" : fmtBase(Number(method.price))}
-                  </span>
-                </label>
-              ))}
+              {(quote?.shippingOptions ?? []).map((option) => {
+                const checked = shippingOptionId === option.id;
+
+                return (
+                  <label
+                    key={option.id}
+                    className={`flex items-start gap-4 p-4 border-2 rounded-xl cursor-pointer transition-colors ${
+                      checked ? "border-brand-blue-mid bg-brand-blue-subtle" : "border-gray-100 hover:border-gray-200"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="shippingOption"
+                      value={option.id}
+                      checked={checked}
+                      onChange={() => selectShipping(option.id)}
+                      className="mt-1 accent-brand-blue-mid"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-gray-900">{option.serviceName}</p>
+                      {option.description && (
+                        <p className="text-sm text-gray-500 mt-0.5">{option.description}</p>
+                      )}
+                      {option.estimatedDays && (
+                        <p className="text-xs text-gray-400 mt-1">Estimado: {option.estimatedDays}</p>
+                      )}
+                    </div>
+                    <span className="font-semibold whitespace-nowrap text-gray-900">
+                      {option.priceArsFormatted}
+                    </span>
+                  </label>
+                );
+              })}
+
+              {loadingQuote && !quote && (
+                <div className="flex items-center gap-2 text-sm text-gray-400 p-4">
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  Cotizando el envío...
+                </div>
+              )}
+
+              {quote && quote.shippingOptions.length === 0 && (
+                <p className="text-sm text-gray-500 p-4">
+                  Ingresá tu código postal para ver las opciones de envío.
+                </p>
+              )}
             </div>
           </section>
 
@@ -374,8 +466,8 @@ export function CheckoutForm({
                       </div>
                       <p className="text-sm text-gray-500 mt-1">{option.description}</p>
                     </div>
-                    <span className="font-semibold text-gray-900 whitespace-nowrap">
-                      {option.totalFormatted}
+                    <span className="font-semibold text-gray-900 whitespace-nowrap text-right">
+                      {option.payableSummary}
                     </span>
                   </label>
                 );
@@ -452,32 +544,49 @@ export function CheckoutForm({
 
             <div className="space-y-2 pt-2 border-t border-gray-100">
               <div className="flex justify-between text-sm text-gray-600">
-                <span>Subtotal</span>
+                <span>Productos</span>
                 <span>{quote ? fmtBase(quote.itemsSubtotal) : "—"}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>Envío</span>
-                <span>{!quote ? "—" : quote.shippingCost === 0 ? "Gratis" : fmtBase(quote.shippingCost)}</span>
-              </div>
+
               {quote && quote.discount > 0 && (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Descuento</span>
                   <span>-{fmtBase(quote.discount)}</span>
                 </div>
               )}
+
               {selectedOption && selectedOption.surchargeAmount > 0 && (
                 <div className="flex justify-between text-sm text-amber-700">
                   <span>Recargo ({selectedOption.surchargePercent}%)</span>
                   <span>+{fmtBase(selectedOption.surchargeAmount)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-100">
-                <span>Total</span>
-                <span>{selectedOption?.totalFormatted ?? "—"}</span>
+
+              {/* El envío se muestra SIEMPRE en pesos, en su propia línea. */}
+              <div className="flex justify-between text-sm text-gray-600 pt-2 border-t border-gray-100">
+                <span>
+                  Envío
+                  {selectedShipping ? (
+                    <span className="block text-xs text-gray-400">{selectedShipping.serviceName}</span>
+                  ) : null}
+                </span>
+                <span className="whitespace-nowrap">
+                  {!quote
+                    ? "—"
+                    : quote.selectedShippingArs === 0
+                      ? "Sin cargo"
+                      : formatArs(quote.selectedShippingArs)}
+                </span>
               </div>
-              {selectedOption && selectedOption.currency !== quote?.baseCurrency && (
-                <p className="text-xs text-gray-400 text-right">
-                  Equivale a {fmtBase(quote?.itemsSubtotal ?? 0)} + cargos en {quote?.baseCurrency}
+
+              <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-100 gap-3">
+                <span>Total</span>
+                <span className="text-right">{selectedOption?.payableSummary ?? "—"}</span>
+              </div>
+
+              {selectedOption && selectedOption.currency !== "ARS" && selectedOption.shippingArs > 0 && (
+                <p className="text-xs text-gray-400 text-right leading-relaxed">
+                  El envío se abona en pesos y no se convierte a dólares.
                 </p>
               )}
             </div>
@@ -486,7 +595,7 @@ export function CheckoutForm({
               type="submit"
               size="lg"
               className="w-full rounded-2xl bg-brand-blue-mid hover:bg-brand-blue-hover gap-2 h-14 text-base font-semibold"
-              disabled={submitting || loadingQuote || !quote || items.length === 0}
+              disabled={submitting || loadingQuote || !quote || !shippingOptionId || items.length === 0}
             >
               {submitting ? (
                 <><Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> Procesando...</>

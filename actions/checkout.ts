@@ -9,20 +9,26 @@ import {
   isPaymentOptionKey,
   PAYMENT_OPTIONS,
   PAYMENT_OPTION_KEYS,
+  formatMoney,
   round2,
+  roundArs,
   type PaymentOptionKey,
   type PricedLine,
 } from "@/lib/pricing";
 import { getExchangeRate } from "@/lib/currency";
+import { quoteShipping } from "@/lib/shipping";
+import type { ShippingQuoteOption } from "@/lib/shipping/types";
 import type { ActionResult } from "@/types";
 
 /**
  * Cotización del checkout.
  *
- * Devuelve el total de cada medio de pago calculado en el servidor, con los
- * mismos precios y reglas que después aplica `createOrder`. El formulario solo
- * muestra estos números: no calcula nada por su cuenta, así lo que ve el
- * cliente es exactamente lo que se va a cobrar.
+ * Devuelve, calculado en el servidor con los precios de la base:
+ *  · las líneas del carrito en moneda base (USD);
+ *  · las opciones de envío en PESOS, cotizadas según el código postal;
+ *  · el total de cada medio de pago, con mercadería y envío separados.
+ *
+ * El formulario solo muestra estos números: no calcula nada por su cuenta.
  */
 
 export interface QuoteLine {
@@ -32,8 +38,20 @@ export interface QuoteLine {
   unitPrice: number;
   quantity: number;
   subtotal: number;
-  /** Stock disponible, para avisar en pantalla si algo cambió. */
   availableStock: number;
+}
+
+export interface QuoteShippingOption {
+  id: string;
+  providerName: string;
+  serviceName: string;
+  /** Tarifa en PESOS ARGENTINOS. */
+  priceArs: number;
+  priceArsFormatted: string;
+  estimatedDays: string | null;
+  description: string | null;
+  isLocal: boolean;
+  isFallback: boolean;
 }
 
 export interface QuoteOption {
@@ -41,12 +59,24 @@ export interface QuoteOption {
   label: string;
   shortLabel: string;
   description: string;
+  /** Moneda en la que se cobra la mercadería. */
   currency: "USD" | "ARS";
   surchargePercent: number;
   surchargeAmount: number;
-  /** Total en la moneda de cobro de este medio. */
-  total: number;
-  totalFormatted: string;
+  /** Total de la mercadería en la moneda de cobro. */
+  goodsTotal: number;
+  goodsTotalFormatted: string;
+  /** Envío en pesos, siempre independiente de la mercadería. */
+  shippingArs: number;
+  shippingArsFormatted: string;
+  /** Gran total en pesos (mercadería convertida + envío). */
+  grandTotalArs: number;
+  grandTotalArsFormatted: string;
+  /**
+   * Cómo se le presenta el total al cliente. En pesos es un único importe;
+   * en dólares son dos, porque el envío se paga en pesos y no se convierte.
+   */
+  payableSummary: string;
   online: boolean;
 }
 
@@ -54,21 +84,40 @@ export interface CheckoutQuote {
   lines: QuoteLine[];
   baseCurrency: "USD" | "ARS";
   itemsSubtotal: number;
-  shippingCost: number;
   discount: number;
   couponCode: string | null;
   couponError: string | null;
   exchangeRate: number;
   rateUpdatedAt: string;
+  shippingOptions: QuoteShippingOption[];
+  quotedPostalCode: string;
+  isLocalDelivery: boolean;
+  shippingUsedFallback: boolean;
+  selectedShippingId: string | null;
+  selectedShippingArs: number;
   options: QuoteOption[];
-  /** Avisos para mostrar en pantalla (stock, productos dados de baja). */
   warnings: string[];
 }
 
 interface QuoteInput {
   items: { productId: string; variantId?: string | null; quantity: number }[];
-  shippingMethodId?: string;
+  postalCode?: string;
+  shippingOptionId?: string;
   couponCode?: string;
+}
+
+function toQuoteShippingOption(option: ShippingQuoteOption): QuoteShippingOption {
+  return {
+    id: option.id,
+    providerName: option.providerName,
+    serviceName: option.serviceName,
+    priceArs: option.priceArs,
+    priceArsFormatted: option.priceArs === 0 ? "Sin cargo" : formatMoney(option.priceArs, "ARS"),
+    estimatedDays: option.estimatedDays,
+    description: option.description ?? null,
+    isLocal: Boolean(option.isLocal),
+    isFallback: Boolean(option.isFallback),
+  };
 }
 
 export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<CheckoutQuote>> {
@@ -131,7 +180,6 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
         continue;
       }
 
-      // Se recorta la cantidad al stock real en lugar de rechazar el carrito.
       const quantity = Math.min(item.quantity, availableStock);
       if (quantity < item.quantity) {
         warnings.push(`Solo quedan ${availableStock} unidades de "${name}".`);
@@ -166,24 +214,47 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
 
     const itemsSubtotal = round2(pricedLines.reduce((s, l) => s + l.subtotal, 0));
 
-    // ── Envío ────────────────────────────────────────────────
-    let shippingCost = 0;
-    if (input.shippingMethodId) {
-      const method = await db.shippingMethod.findFirst({
-        where: { id: input.shippingMethodId, isActive: true },
-      });
+    const [config, rate] = await Promise.all([getPricingConfig(), getExchangeRate()]);
 
-      if (method) {
-        shippingCost = Number(method.price);
-        const freeFrom = method.freeFrom === null ? null : Number(method.freeFrom);
-        const allFreeShipping = pricedLines.every(
-          (l) => productById.get(l.productId)?.freeShipping
-        );
-        if ((freeFrom !== null && itemsSubtotal >= freeFrom) || allFreeShipping) {
-          shippingCost = 0;
-        }
-      }
+    // ── Envío: cotizado en pesos según el código postal ──────
+    // El valor declarado va en pesos porque es lo que aseguran los
+    // transportistas argentinos.
+    const declaredValueArs =
+      config.baseCurrency === "ARS" ? roundArs(itemsSubtotal) : roundArs(itemsSubtotal * rate.rate);
+
+    const shippingQuote = await quoteShipping({
+      postalCode: input.postalCode ?? "",
+      items: pricedLines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+      declaredValueArs,
+    });
+
+    // Envío sin cargo si todos los productos lo tienen marcado.
+    const allFreeShipping = pricedLines.every((l) => productById.get(l.productId)?.freeShipping);
+
+    let shippingOptions = shippingQuote.options.map(toQuoteShippingOption);
+
+    if (allFreeShipping) {
+      shippingOptions = shippingOptions.map((o) => ({
+        ...o,
+        priceArs: 0,
+        priceArsFormatted: "Sin cargo",
+        description: o.description
+          ? `${o.description} · Envío sin cargo por promoción.`
+          : "Envío sin cargo por promoción.",
+      }));
     }
+
+    // La opción elegida se valida contra las disponibles; si ya no está, se
+    // toma la más barata en lugar de dejar el checkout sin envío.
+    const requestedId = input.shippingOptionId;
+    const matched = requestedId ? shippingOptions.find((o) => o.id === requestedId) : undefined;
+    const selected = matched ?? shippingOptions[0] ?? null;
+
+    if (requestedId && !matched) {
+      warnings.push("La opción de envío elegida ya no está disponible para ese código postal.");
+    }
+
+    const selectedShippingArs = selected?.priceArs ?? 0;
 
     // ── Cupón ────────────────────────────────────────────────
     let discount = 0;
@@ -206,13 +277,12 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
     }
 
     // ── Totales por medio de pago ────────────────────────────
-    const [config, rate] = await Promise.all([getPricingConfig(), getExchangeRate()]);
-
     const options: QuoteOption[] = [];
+
     for (const key of PAYMENT_OPTION_KEYS) {
       const totals = await computeTotals({
         lines: pricedLines,
-        shippingCost,
+        shippingCostArs: selectedShippingArs,
         discount,
         paymentOption: key,
         config,
@@ -220,6 +290,19 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
       });
 
       const option = PAYMENT_OPTIONS[key];
+      const goodsFormatted = formatMoney(totals.totalCharged, totals.chargeCurrency);
+      const shippingFormatted =
+        totals.shippingCostArs === 0 ? "Sin cargo" : formatMoney(totals.shippingCostArs, "ARS");
+
+      // En pesos es un único importe. En dólares el envío se cobra aparte, en
+      // pesos, y se explicita para que el cliente sepa exactamente qué paga.
+      const payableSummary =
+        totals.chargeCurrency === "ARS"
+          ? formatMoney(totals.grandTotalArs, "ARS")
+          : totals.shippingCostArs === 0
+            ? goodsFormatted
+            : `${goodsFormatted} + ${shippingFormatted} de envío`;
+
       options.push({
         key,
         label: option.label,
@@ -228,15 +311,21 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
         currency: option.currency,
         surchargePercent: totals.surchargePercent,
         surchargeAmount: totals.surchargeAmount,
-        total: totals.totalCharged,
-        totalFormatted: new Intl.NumberFormat("es-AR", {
-          style: "currency",
-          currency: option.currency,
-          minimumFractionDigits: option.currency === "ARS" ? 0 : 2,
-          maximumFractionDigits: option.currency === "ARS" ? 0 : 2,
-        }).format(totals.totalCharged),
+        goodsTotal: totals.totalCharged,
+        goodsTotalFormatted: goodsFormatted,
+        shippingArs: totals.shippingCostArs,
+        shippingArsFormatted: shippingFormatted,
+        grandTotalArs: totals.grandTotalArs,
+        grandTotalArsFormatted: formatMoney(totals.grandTotalArs, "ARS"),
+        payableSummary,
         online: option.online,
       });
+    }
+
+    if (shippingQuote.failedProviders.length > 0) {
+      warnings.push(
+        "No pudimos consultar la tarifa en vivo del transportista. Se muestra nuestra tarifa de referencia."
+      );
     }
 
     return {
@@ -245,12 +334,17 @@ export async function getCheckoutQuote(input: QuoteInput): Promise<ActionResult<
         lines,
         baseCurrency: config.baseCurrency,
         itemsSubtotal,
-        shippingCost,
         discount,
         couponCode,
         couponError,
         exchangeRate: rate.rate,
         rateUpdatedAt: rate.updatedAt.toISOString(),
+        shippingOptions,
+        quotedPostalCode: shippingQuote.postalCode,
+        isLocalDelivery: shippingQuote.isLocal,
+        shippingUsedFallback: shippingQuote.usedFallback,
+        selectedShippingId: selected?.id ?? null,
+        selectedShippingArs,
         options,
         warnings,
       },

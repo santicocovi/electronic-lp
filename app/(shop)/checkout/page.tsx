@@ -46,10 +46,11 @@ export default async function CheckoutPage() {
     );
   }
 
-  const [shippingMethods, defaultAddress] = await Promise.all([
-    db.shippingMethod.findMany({ where: { isActive: true }, orderBy: { order: "asc" } }),
-    db.address.findFirst({ where: { userId: user.id, isDefault: true } }),
-  ]);
+  // Las opciones de envío ya no se listan acá: se cotizan contra el código
+  // postal desde el propio formulario (ver lib/shipping).
+  const defaultAddress = await db.address.findFirst({
+    where: { userId: user.id, isDefault: true },
+  });
 
   return (
     <div className="pt-24 min-h-screen bg-gray-50/50">
@@ -59,7 +60,6 @@ export default async function CheckoutPage() {
         <CheckoutForm
           userEmail={user.email}
           userName={user.name ?? ""}
-          shippingMethods={shippingMethods}
           defaultAddress={defaultAddress}
         />
 

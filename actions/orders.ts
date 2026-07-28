@@ -12,6 +12,7 @@ import {
 import { requireVerifiedUser, toActionError, AuthError } from "@/lib/auth-guard";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { validateCoupon } from "@/lib/coupons";
+import { quoteShipping } from "@/lib/shipping";
 import {
   computeTotals,
   getPricingConfig,
@@ -64,7 +65,11 @@ interface CreateOrderInput {
     province: string;
     postalCode: string;
   };
-  shippingMethodId: string;
+  /**
+   * Id de la opción de envío cotizada (ej: "andreani:domicilio", "local:pickup").
+   * Se revalida en el servidor: nunca se confía en el precio del navegador.
+   */
+  shippingOptionId: string;
   paymentOption: PaymentOptionKey;
   couponCode?: string;
   notes?: string;
@@ -228,25 +233,26 @@ export async function createOrder(
 
     const itemsSubtotal = round2(pricedLines.reduce((s, l) => s + l.subtotal, 0));
 
-    // ── 4. Envío: el costo sale del método guardado ──────────
-    const shippingMethod = await db.shippingMethod.findFirst({
-      where: { id: input.shippingMethodId, isActive: true },
+    // ── 4. Envío: se recotiza en el servidor, siempre en PESOS ─
+    // El envío lo cobra un transportista argentino en ARS, así que nunca se
+    // convierte a dólares ni se suma al subtotal en moneda base.
+    const shippingQuote = await quoteShipping({
+      postalCode: shippingParsed.data.postalCode,
+      items: pricedLines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+      declaredValueArs: Math.round(itemsSubtotal * (await getExchangeRate()).rate),
     });
 
-    if (!shippingMethod) {
-      throw new CheckoutError("El método de envío seleccionado no está disponible.");
+    const shippingOption = shippingQuote.options.find((o) => o.id === input.shippingOptionId);
+
+    if (!shippingOption) {
+      throw new CheckoutError(
+        "La opción de envío seleccionada ya no está disponible para ese código postal. Volvé a elegirla."
+      );
     }
 
-    let shippingCost = Number(shippingMethod.price);
-
-    // Envío gratis por umbral del método, o porque todos los productos lo tienen.
-    const freeFrom = shippingMethod.freeFrom === null ? null : Number(shippingMethod.freeFrom);
-    const allFreeShipping = pricedLines.every(
-      (l) => productById.get(l.productId)?.freeShipping
-    );
-    if ((freeFrom !== null && itemsSubtotal >= freeFrom) || allFreeShipping) {
-      shippingCost = 0;
-    }
+    // Envío sin cargo si todos los productos lo tienen marcado.
+    const allFreeShipping = pricedLines.every((l) => productById.get(l.productId)?.freeShipping);
+    const shippingCostArs = allFreeShipping ? 0 : shippingOption.priceArs;
 
     // ── 5. Cupón: se revalida y se recalcula el descuento ────
     let couponId: string | null = null;
@@ -272,7 +278,7 @@ export async function createOrder(
 
     const totals = await computeTotals({
       lines: pricedLines,
-      shippingCost,
+      shippingCostArs,
       discount,
       paymentOption: input.paymentOption,
       config,
@@ -325,20 +331,23 @@ export async function createOrder(
               currency: config.baseCurrency,
               exchangeRate: new Prisma.Decimal(totals.exchangeRate),
               subtotal: new Prisma.Decimal(totals.itemsSubtotal),
-              shippingCost: new Prisma.Decimal(totals.shippingCost),
+              // Envío en PESOS, siempre. No participa de `total`, que está en
+              // moneda base: son monedas distintas y no se suman.
+              shippingCost: new Prisma.Decimal(totals.shippingCostArs),
               discount: new Prisma.Decimal(totals.discount),
               surchargePercent: new Prisma.Decimal(totals.surchargePercent),
               surchargeAmount: new Prisma.Decimal(totals.surchargeAmount),
+              // Mercadería + recargo, en moneda base. Sin envío.
               total: new Prisma.Decimal(totals.total),
-              totalArs: new Prisma.Decimal(
-                totals.chargeCurrency === "ARS"
-                  ? totals.totalCharged
-                  : Math.round(totals.total * totals.exchangeRate)
-              ),
+              // Gran total en pesos: mercadería convertida + envío.
+              totalArs: new Prisma.Decimal(totals.grandTotalArs),
               couponId,
               couponCode,
               notes: input.notes?.slice(0, 1000) || null,
-              shippingMethod: shippingMethod.name,
+              shippingMethod: shippingOption.serviceName,
+              shippingCarrier: shippingOption.providerName,
+              shippingProvider: shippingOption.providerId,
+              shippingQuotedCp: shippingQuote.postalCode || null,
               shippingName: `${shipping.firstName} ${shipping.lastName}`,
               shippingStreet: `${shipping.street} ${shipping.number}${shipping.apartment ? ` ${shipping.apartment}` : ""}`,
               shippingCity: shipping.city,
@@ -395,8 +404,9 @@ export async function createOrder(
         const mpResult = await createCheckoutPreference({
           orderId: order.id,
           orderNumber: order.orderNumber,
-          // Mercado Pago cobra en pesos: se manda el total ya convertido.
-          totalArs: totals.totalCharged,
+          // Mercado Pago cobra en pesos: la mercadería se convierte con la
+          // cotización, pero el envío YA está en pesos y se manda tal cual.
+          totalArs: totals.grandTotalArs,
           items: pricedLines.map((l) => ({
             id: l.productId,
             title: l.name.substring(0, 250),
@@ -404,7 +414,7 @@ export async function createOrder(
             unitPriceArs: Math.round(l.unitPrice * totals.exchangeRate),
             picture_url: l.image ?? undefined,
           })),
-          shippingCostArs: Math.round(totals.shippingCost * totals.exchangeRate),
+          shippingCostArs: totals.shippingCostArs,
           discountArs: Math.round(totals.discount * totals.exchangeRate),
           surchargeArs: Math.round(totals.surchargeAmount * totals.exchangeRate),
           payer: {
@@ -443,7 +453,18 @@ export async function createOrder(
     }
 
     // ── 9. Notificaciones ────────────────────────────────────
-    const totalLabel = formatMoney(totals.totalCharged, totals.chargeCurrency);
+    // El importe a abonar se comunica igual que en el checkout: en pesos es un
+    // único número; en dólares, la mercadería y el envío van separados porque
+    // el envío se paga en pesos.
+    const goodsLabel = formatMoney(totals.totalCharged, totals.chargeCurrency);
+    const shippingLabel = formatMoney(totals.shippingCostArs, "ARS");
+
+    const totalLabel =
+      totals.chargeCurrency === "ARS"
+        ? formatMoney(totals.grandTotalArs, "ARS")
+        : totals.shippingCostArs === 0
+          ? goodsLabel
+          : `${goodsLabel} + ${shippingLabel} de envío`;
 
     await sendOrderConfirmation(
       user.email,

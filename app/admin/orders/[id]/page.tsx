@@ -112,10 +112,16 @@ export default async function AdminOrderDetailPage({
 
             {/* Totales */}
             <div className="border-t border-gray-100 px-6 py-4 space-y-2 bg-gray-50/50">
-              <Row label="Subtotal" value={fmt(order.subtotal)} />
+              <Row label="Productos" value={fmt(order.subtotal)} />
+              {/* El envío está SIEMPRE en pesos: lo cobra un transportista
+                  argentino y no se convierte a la moneda del pedido. */}
               <Row
                 label={`Envío${order.shippingMethod ? ` (${order.shippingMethod})` : ""}`}
-                value={Number(order.shippingCost) === 0 ? "Gratis" : fmt(order.shippingCost)}
+                value={
+                  Number(order.shippingCost) === 0
+                    ? "Sin cargo"
+                    : formatMoney(Number(order.shippingCost), "ARS")
+                }
               />
               {Number(order.discount) > 0 && (
                 <Row
@@ -133,16 +139,22 @@ export default async function AdminOrderDetailPage({
               )}
 
               <div className="flex justify-between items-baseline text-base font-bold text-gray-900 pt-2 border-t border-gray-200">
-                <span>Total</span>
+                <span>Mercadería</span>
                 <span>{fmt(order.total)}</span>
               </div>
 
-              {order.totalArs && currency !== "ARS" && (
+              {order.totalArs && (
+                <div className="flex justify-between items-baseline text-sm font-semibold text-gray-700">
+                  <span>Total en pesos (con envío)</span>
+                  <span>{formatMoney(Number(order.totalArs), "ARS")}</span>
+                </div>
+              )}
+
+              {order.exchangeRate && currency !== "ARS" && (
                 <p className="text-xs text-gray-400 text-right">
-                  Equivalente: {formatMoney(Number(order.totalArs), "ARS")}
-                  {order.exchangeRate
-                    ? ` · cotización usada $${Number(order.exchangeRate).toLocaleString("es-AR")}`
-                    : ""}
+                  Cotización usada: ${Number(order.exchangeRate).toLocaleString("es-AR")} por USD
+                  {order.shippingProvider ? ` · envío cotizado por ${order.shippingProvider}` : ""}
+                  {order.shippingQuotedCp ? ` (CP ${order.shippingQuotedCp})` : ""}
                 </p>
               )}
             </div>
