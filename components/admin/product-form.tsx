@@ -17,6 +17,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { readImageWidth, uploadImageFile } from "@/lib/upload-client";
+import { MINIMUM_IMAGE_WIDTH, RECOMMENDED_IMAGE_WIDTH } from "@/lib/media";
 import { slugify } from "@/lib/utils";
 import { productSchema, type ProductInput } from "@/validations";
 import { createProduct, updateProduct } from "@/actions/admin/products";
@@ -164,20 +166,32 @@ export function ProductForm({
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
+
     setUploading(true);
     for (const file of files) {
-      const fd = new FormData();
-      fd.append("file", file);
       try {
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const json = await res.json();
-        if (res.ok) {
-          setImages((prev) => [...prev, { url: json.url, alt: "", isMain: prev.length === 0 }]);
-        } else {
-          toast.add({ title: json.error ?? "Error al subir imagen", type: "error" });
+        // Aviso de resolución: la única pérdida de nitidez que no se puede
+        // corregir después es subir un archivo más chico que el marco donde se
+        // va a mostrar. No bloquea la subida, solo lo señala.
+        const width = await readImageWidth(file);
+        if (width !== null && width < MINIMUM_IMAGE_WIDTH) {
+          toast.add({
+            title: `"${file.name}" tiene poca resolución`,
+            description: `Mide ${width} px de ancho. Para que se vea nítida en la ficha conviene al menos ${RECOMMENDED_IMAGE_WIDTH} px.`,
+            type: "error",
+          });
         }
-      } catch {
-        toast.add({ title: "Error al subir imagen", type: "error" });
+
+        // El archivo se guarda tal cual se eligió: sin recomprimir ni
+        // redimensionar. Las versiones por breakpoint las genera la tienda.
+        const asset = await uploadImageFile(file);
+        setImages((prev) => [...prev, { url: asset.url, alt: "", isMain: prev.length === 0 }]);
+      } catch (error) {
+        toast.add({
+          title: `No se pudo subir "${file.name}"`,
+          description: error instanceof Error ? error.message : undefined,
+          type: "error",
+        });
       }
     }
     setUploading(false);
@@ -491,6 +505,12 @@ export function ProductForm({
             </Button>
           </div>
         </div>
+
+        <p className="text-xs text-gray-500 -mt-2">
+          Subí el archivo original, en la mayor resolución que tengas: se guarda tal cual, sin
+          recomprimir. Para que se vea nítido en la ficha conviene un ancho de al menos{" "}
+          {RECOMMENDED_IMAGE_WIDTH} px. La tienda genera sola las versiones para cada pantalla.
+        </p>
 
         {images.length === 0 ? (
           <p className="text-sm text-gray-400">Todavía no subiste ninguna imagen.</p>

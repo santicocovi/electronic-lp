@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Loader2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import { uploadImageFile } from "@/lib/upload-client";
 
 interface ImageUploadFieldProps {
   value: string;
@@ -19,18 +20,16 @@ export function ImageUploadField({ value, onChange, label = "Subir imagen" }: Im
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
     try {
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const json = await res.json();
-      if (res.ok) {
-        onChange(json.url);
-      } else {
-        toast.add({ title: json.error ?? "Error al subir la imagen", type: "error" });
-      }
-    } catch {
-      toast.add({ title: "Error al subir la imagen", type: "error" });
+      // Sube el archivo original sin recomprimir ni redimensionar.
+      const asset = await uploadImageFile(file);
+      onChange(asset.url);
+    } catch (error) {
+      toast.add({
+        title: "Error al subir la imagen",
+        description: error instanceof Error ? error.message : undefined,
+        type: "error",
+      });
     }
     setUploading(false);
     if (inputRef.current) inputRef.current.value = "";

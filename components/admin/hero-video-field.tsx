@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, Upload, Trash2, Film, AlertTriangle, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { saveHeroVideo, deleteHeroVideo } from "@/actions/admin/hero-video";
+import { saveHeroVideoAsset, deleteHeroVideo } from "@/actions/admin/hero-video";
+import { uploadHeroVideoFile } from "@/lib/upload-client";
 import { DEFAULT_HERO_VIDEO, type HeroVideoState } from "@/lib/hero-video";
 
 /**
@@ -19,7 +20,12 @@ interface HeroVideoFieldProps {
   initial: HeroVideoState;
 }
 
-const MAX_MB = 50;
+/**
+ * 100 MB: el tope de un archivo de video en el plan gratuito de Cloudinary.
+ * Antes eran 50 MB por el camino de subida vía servidor; ahora el archivo va
+ * directo, así que el único límite real es el de Cloudinary.
+ */
+const MAX_MB = 100;
 const ACCEPTED = ".mp4,.webm,.mov,video/mp4,video/webm,video/quicktime";
 
 export function HeroVideoField({ initial }: HeroVideoFieldProps) {
@@ -49,25 +55,14 @@ export function HeroVideoField({ initial }: HeroVideoFieldProps) {
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      // El video va directo del navegador a Cloudinary: así no lo alcanza el
+      // límite de 4,5 MB que Vercel impone al cuerpo de una petición, que era
+      // lo que obligaba a comprimir el archivo antes de subirlo.
+      const asset = await uploadHeroVideoFile(file);
 
-      const response = await fetch("/api/upload/video", { method: "POST", body: formData });
-      const payload = (await response.json().catch(() => null)) as
-        | { url?: string; posterUrl?: string; publicId?: string; error?: string }
-        | null;
-
-      if (!response.ok || !payload?.url) {
-        const message = payload?.error ?? "No pudimos subir el video.";
-        setError(message);
-        toast.add({ title: "Error al subir", description: message, type: "error" });
-        return;
-      }
-
-      const result = await saveHeroVideo({
-        url: payload.url,
-        posterUrl: payload.posterUrl ?? "",
-        publicId: payload.publicId ?? "",
+      const result = await saveHeroVideoAsset({
+        publicId: asset.publicId,
+        version: asset.version,
       });
 
       if (!result.success) {
@@ -76,19 +71,20 @@ export function HeroVideoField({ initial }: HeroVideoFieldProps) {
         return;
       }
 
-      setCurrent({
-        url: payload.url,
-        posterUrl: payload.posterUrl ?? null,
-        publicId: payload.publicId ?? null,
-        isCustom: true,
-      });
-
-      toast.add({ title: "Video actualizado", description: "Ya se ve en la portada." });
+      // Se relee el estado guardado para mostrar exactamente las URLs de alta
+      // calidad que armó el servidor.
       router.refresh();
-    } catch {
-      const message = "Se cortó la conexión durante la subida.";
+      setCurrent((prev) => ({ ...prev, isCustom: true }));
+
+      toast.add({
+        title: "Video actualizado",
+        description: "Ya se ve en la portada, en calidad alta.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Se cortó la conexión durante la subida.";
       setError(message);
-      toast.add({ title: message, type: "error" });
+      toast.add({ title: "Error al subir", description: message, type: "error" });
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -198,11 +194,11 @@ export function HeroVideoField({ initial }: HeroVideoFieldProps) {
         </li>
         <li className="flex items-center gap-1.5">
           <Check className="w-3 h-3 shrink-0" aria-hidden="true" />
-          Se recomienda 1920×1080, entre 10 y 30 segundos, sin audio.
+          Subilo en la mejor calidad que tengas: no hace falta comprimirlo antes.
         </li>
         <li className="flex items-center gap-1.5">
           <Check className="w-3 h-3 shrink-0" aria-hidden="true" />
-          Se recomprime y se entrega en el formato óptimo para cada navegador.
+          Se entrega hasta en 1920×1080 con la máxima calidad de compresión.
         </li>
         <li className="flex items-center gap-1.5">
           <Check className="w-3 h-3 shrink-0" aria-hidden="true" />

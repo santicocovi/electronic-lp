@@ -12,6 +12,7 @@ import { useCartStore } from "@/hooks/use-cart";
 import { toast } from "@/hooks/use-toast";
 import { cn, calculateDiscount } from "@/lib/utils";
 import { useCurrency } from "@/hooks/use-currency";
+import { IMAGE_QUALITY_HERO, IMAGE_QUALITY_THUMB } from "@/lib/media";
 import { ProductMedia } from "@/components/shop/product/product-media";
 import type { ProductWithRelations } from "@/types";
 
@@ -208,7 +209,15 @@ export function FeaturedCarousel({
                       categoryName={item.category?.name}
                       // Solo el primer slide es candidato a LCP.
                       priority={i === 0}
-                      sizes="(max-width: 640px) 92vw, (max-width: 1024px) 88vw, 44vw"
+                      /*
+                       * El marco ocupa media pantalla en desktop. Se declara
+                       * 50vw en lugar del ancho exacto para que en pantallas
+                       * de alta densidad el navegador elija el escalón de
+                       * arriba del srcset y no una imagen que después tiene
+                       * que estirar.
+                       */
+                      sizes="(max-width: 640px) 92vw, (max-width: 1024px) 90vw, 50vw"
+                      quality={IMAGE_QUALITY_HERO}
                       className="p-6 sm:p-10"
                       illustrationClassName="p-10 sm:p-14"
                     />
@@ -331,6 +340,7 @@ export function FeaturedCarousel({
                       categorySlug={p.category?.slug}
                       categoryName={p.category?.name}
                       sizes="56px"
+                      quality={IMAGE_QUALITY_THUMB}
                       className="p-1.5"
                       illustrationClassName="p-1.5"
                     />

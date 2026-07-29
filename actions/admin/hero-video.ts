@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin, toActionError } from "@/lib/auth-guard";
-import { deleteAsset, isCloudinaryConfigured } from "@/lib/cloudinary";
+import {
+  buildHeroPosterUrl,
+  buildHeroVideoUrl,
+  deleteAsset,
+  isCloudinaryConfigured,
+  upgradeCloudinaryPosterUrl,
+  upgradeCloudinaryVideoUrl,
+} from "@/lib/cloudinary";
 import { updateManySettings } from "@/lib/settings";
 import { DEFAULT_HERO_VIDEO, type HeroVideoState } from "@/lib/hero-video";
 import type { ActionResult } from "@/types";
@@ -26,19 +33,63 @@ export async function getHeroVideo(): Promise<HeroVideoState> {
   });
 
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-  const url = map.heroVideoUrl?.trim() || DEFAULT_HERO_VIDEO;
+  const storedUrl = map.heroVideoUrl?.trim() || DEFAULT_HERO_VIDEO;
+  const storedPoster = map.heroVideoPoster?.trim() || null;
+
+  /**
+   * Los videos subidos antes de este cambio quedaron guardados con una URL de
+   * calidad media (`q_auto`). Se reescribe el tramo de transformación al vuelo
+   * para que recuperen la calidad alta sin obligar a volver a subir el archivo.
+   * El `public_id` y la versión —que son los que identifican al asset— no se
+   * tocan, así que apunta exactamente al mismo video.
+   */
+  const url = upgradeCloudinaryVideoUrl(storedUrl);
 
   return {
     url,
-    posterUrl: map.heroVideoPoster?.trim() || null,
+    posterUrl: storedPoster ? upgradeCloudinaryPosterUrl(storedPoster) : null,
     publicId: map.heroVideoPublicId?.trim() || null,
-    isCustom: url !== DEFAULT_HERO_VIDEO,
+    isCustom: storedUrl !== DEFAULT_HERO_VIDEO,
   };
 }
 
 /**
- * Guarda el video recién subido. La subida a Cloudinary la hace el endpoint
- * `/api/upload/video`; acá solo se persiste el resultado.
+ * Registra un video que el navegador ya subió directo a Cloudinary.
+ *
+ * Del cliente solo se aceptan el identificador y la versión del asset: las URLs
+ * de entrega —con la transformación de alta calidad— se arman acá, así el
+ * navegador no puede pedir que se sirva otra cosa ni con otra compresión.
+ */
+export async function saveHeroVideoAsset(input: {
+  publicId: string;
+  version: string;
+}): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+
+    // Formato de un public_id de Cloudinary: letras, números, guiones y barras.
+    if (!/^[\w./-]+$/.test(input.publicId)) {
+      return { success: false, error: "El identificador del video no es válido" };
+    }
+    if (input.version && !/^v\d+$/.test(input.version)) {
+      return { success: false, error: "La versión del video no es válida" };
+    }
+
+    const version = input.version ? `${input.version}/` : "";
+
+    return saveHeroVideo({
+      url: buildHeroVideoUrl(input.publicId, version),
+      posterUrl: buildHeroPosterUrl(input.publicId, version),
+      publicId: input.publicId,
+    });
+  } catch (error) {
+    return toActionError(error, "No pudimos guardar el video");
+  }
+}
+
+/**
+ * Guarda el video recién subido. La subida a Cloudinary la hace el navegador
+ * (o, como respaldo, el endpoint `/api/upload/video`); acá solo se persiste.
  */
 export async function saveHeroVideo(input: {
   url: string;

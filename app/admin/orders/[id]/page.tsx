@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { formatMoney } from "@/lib/pricing";
+import { IMAGE_QUALITY_THUMB } from "@/lib/media";
 import { formatStoreDateTime } from "@/lib/dates";
 import { OrderControls } from "@/components/admin/order-controls";
 import {
@@ -86,6 +87,7 @@ export default async function AdminOrderDetailPage({
                         alt={item.name}
                         fill
                         sizes="48px"
+                        quality={IMAGE_QUALITY_THUMB}
                         className="object-contain p-1"
                       />
                     ) : (

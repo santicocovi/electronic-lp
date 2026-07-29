@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { IMAGE_QUALITY_CARD } from "@/lib/media";
 import { ProductIllustration } from "@/components/shop/product/product-illustration";
 
 /**
@@ -23,6 +24,11 @@ interface ProductMediaProps {
   categoryName?: string | null;
   sizes: string;
   priority?: boolean;
+  /**
+   * Calidad de recompresión. Se declara siempre de forma explícita: el 75 por
+   * defecto de `next/image` degrada visiblemente las fotos de producto.
+   */
+  quality?: number;
   /** Clases de la imagen (padding, object-fit, transiciones de hover). */
   className?: string;
   /** Clases de la ilustración, normalmente un padding mayor. */
@@ -37,6 +43,7 @@ export function ProductMedia({
   categoryName,
   sizes,
   priority = false,
+  quality = IMAGE_QUALITY_CARD,
   className,
   illustrationClassName,
 }: ProductMediaProps) {
@@ -62,6 +69,7 @@ export function ProductMedia({
       fill
       sizes={sizes}
       priority={priority}
+      quality={quality}
       className={cn("object-contain", className)}
     />
   );

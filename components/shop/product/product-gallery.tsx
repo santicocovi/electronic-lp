@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Expand, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { IMAGE_QUALITY_HERO, IMAGE_QUALITY_THUMB, IMAGE_QUALITY_ZOOM } from "@/lib/media";
 import { ProductIllustration } from "@/components/shop/product/product-illustration";
 import type { ProductWithRelations } from "@/types";
 
@@ -82,6 +83,7 @@ export function ProductGallery({ product }: ProductGalleryProps) {
                 fill
                 className="object-contain p-10 sm:p-14"
                 sizes="(max-width: 1024px) 100vw, 50vw"
+                quality={IMAGE_QUALITY_HERO}
                 priority
               />
             ) : (
@@ -148,6 +150,7 @@ export function ProductGallery({ product }: ProductGalleryProps) {
                 alt=""
                 fill
                 sizes="68px"
+                quality={IMAGE_QUALITY_THUMB}
                 className="object-contain p-2"
               />
             </button>
@@ -182,11 +185,17 @@ export function ProductGallery({ product }: ProductGalleryProps) {
               className="relative aspect-square w-full max-w-4xl"
               onClick={(e) => e.stopPropagation()}
             >
+              {/*
+                Visor ampliado: es el momento en el que el cliente inspecciona
+                el producto de cerca, así que va a la calidad más alta y sin
+                lazy loading, para que no haya un salto de nitidez al abrirlo.
+              */}
               <Image
                 src={activeImage.url}
                 alt={activeImage.alt ?? product.name}
                 fill
                 sizes="100vw"
+                quality={IMAGE_QUALITY_ZOOM}
                 className="object-contain"
               />
             </div>

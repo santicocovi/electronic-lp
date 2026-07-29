@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { getCategoryIcon } from "@/lib/category-icons";
+import { IMAGE_QUALITY_HERO } from "@/lib/media";
 import type { CategoryWithChildren } from "@/types";
 
 /**
@@ -118,6 +119,7 @@ function LeadCard({
             alt=""
             fill
             sizes="(max-width: 1024px) 100vw, 50vw"
+            quality={IMAGE_QUALITY_HERO}
             className={`object-cover transition-transform duration-[900ms] ease-out ${
               reduceMotion ? "" : "group-hover:scale-[1.04]"
             }`}

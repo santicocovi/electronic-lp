@@ -60,7 +60,28 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
     ],
+    /**
+     * AVIF primero y WebP de respaldo. A la calidad que ahora declara cada
+     * `<Image>` (ver lib/media.ts), AVIF conserva los degradados sin bandas y
+     * aun así pesa menos que el JPEG original.
+     */
     formats: ["image/avif", "image/webp"],
+    /**
+     * Anchos que puede generar el optimizador. Se agrega 1536 —que no está en
+     * el conjunto por defecto— porque es justo el ancho que pide la galería de
+     * producto en una pantalla de 15" con densidad 2x: sin ese escalón el
+     * navegador tenía que elegir entre 1200 (y estirar, perdiendo nitidez) o
+     * 1920 (y descargar de más).
+     */
+    deviceSizes: [640, 750, 828, 1080, 1200, 1536, 1920, 2048, 3840],
+    /** Tamaños para miniaturas y avatares. */
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    /**
+     * Cachea la imagen ya optimizada 30 días. Reprocesar cuesta tiempo y, en
+     * Vercel, transformaciones facturables; el archivo de origen no cambia
+     * nunca porque Cloudinary le da una URL distinta a cada subida.
+     */
+    minimumCacheTTL: 60 * 60 * 24 * 30,
   },
   // Oculta la versión de Next en las respuestas.
   poweredByHeader: false,

@@ -7,6 +7,7 @@ import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/hooks/use-cart";
 import { useCurrency } from "@/hooks/use-currency";
+import { IMAGE_QUALITY_THUMB } from "@/lib/media";
 import { ShippingNotice } from "@/components/shop/shipping-notice";
 
 export default function CartPage() {
@@ -74,10 +75,17 @@ export default function CartPage() {
                   className="flex gap-5 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm"
                 >
                   <div className="relative w-24 h-24 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0">
+                    {/*
+                      `sizes` es obligatorio con `fill`. Sin él, Next asume
+                      100vw y el navegador descarga la variante más grande del
+                      srcset —hasta 3840 px— para una caja de 96 px.
+                    */}
                     <Image
                       src={item.image}
                       alt={item.name}
                       fill
+                      sizes="96px"
+                      quality={IMAGE_QUALITY_THUMB}
                       className="object-contain p-2"
                     />
                   </div>

@@ -20,6 +20,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "El archivo debe ser una imagen" }, { status: 400 });
   }
 
+  /**
+   * Camino de respaldo. El panel sube directo a Cloudinary (ver
+   * lib/upload-client) y solo cae acá si esa vía no está disponible.
+   *
+   * Ojo con el tope: en Vercel el cuerpo de una petición a una Serverless
+   * Function no puede pasar de 4,5 MB, así que por esta ruta un archivo más
+   * grande se corta antes de llegar a este código. Es exactamente el motivo por
+   * el que existe la subida directa.
+   */
   if (file.size > 8 * 1024 * 1024) {
     return NextResponse.json({ error: "La imagen no puede superar 8MB" }, { status: 400 });
   }
